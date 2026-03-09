@@ -43,6 +43,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [showProfileEdit, setShowProfileEdit] = useState(false);
     const [showBouncingLogo, setShowBouncingLogo] = useState(false);
+    const [showMaintenancePopup, setShowMaintenancePopup] = useState(true);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
     const [submitting, setSubmitting] = useState(false);
@@ -791,7 +792,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     };
 
     const maintenanceStatus = checkMaintenanceStatus();
-    const [showMaintenancePopup, setShowMaintenancePopup] = useState(true);
 
     const handleMaintenanceCleanup = async (type) => {
         try {

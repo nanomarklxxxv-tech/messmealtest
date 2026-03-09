@@ -396,7 +396,15 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                 <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-[#0D0D0D]"></span>
                             )}
                         </button>
-                        <button onClick={() => window.location.reload()} className="bg-[#F0F0F0] hover:bg-[#E4E4E4] dark:bg-[#2A2A2A] dark:hover:bg-[#333] border border-[#E4E4E4] dark:border-[#2A2A2A] p-2 rounded-xl dark:rounded-pill transition-all text-[#6B6B6B] dark:text-[#A0A0A0]" title="Reload App">
+                        <button
+                            onClick={() => {
+                                // soft refresh: re-trigger menu and notices without full page reload
+                                setSelectedDate(new Date().toLocaleDateString('en-CA'));
+                                toast.success("Data refreshed");
+                            }}
+                            className="bg-[#F0F0F0] hover:bg-[#E4E4E4] dark:bg-[#2A2A2A] dark:hover:bg-[#333] border border-[#E4E4E4] dark:border-[#2A2A2A] p-2 rounded-xl dark:rounded-pill transition-all text-[#6B6B6B] dark:text-[#A0A0A0]"
+                            title="Refresh data"
+                        >
                             <RefreshCw size={16} />
                         </button>
                         <button

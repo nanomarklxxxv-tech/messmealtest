@@ -48,7 +48,13 @@ const App = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [config, setConfig] = useState(null);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    try {
+      return !sessionStorage.getItem('messmeal_skip_splash');
+    } catch {
+      return true;
+    }
+  });
 
   const [viewMode, setViewMode] = useState('user'); // 'user' or 'admin'
 
@@ -102,26 +108,6 @@ const App = () => {
   // Auth & User Data Lifecycle
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7898/ingest/571b90a7-28dd-4b06-a301-b6aa045c1ce4', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': 'f64b73'
-        },
-        body: JSON.stringify({
-          sessionId: 'f64b73',
-          runId: 'initial',
-          hypothesisId: 'H1',
-          location: 'src/App.jsx:authEffect',
-          message: 'onAuthStateChanged fired',
-          data: {
-            hasUser: !!currentUser
-          },
-          timestamp: Date.now()
-        })
-      }).catch(() => { });
-      // #endregion agent log
       if (currentUser) {
         localStorage.setItem('isLoggedIn', 'true');
         setUser(currentUser);
@@ -304,41 +290,21 @@ const App = () => {
     (userData?.role === 'admin' || userData?.role === 'faculty') &&
     !userData?.approved;
 
-  useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7898/ingest/571b90a7-28dd-4b06-a301-b6aa045c1ce4', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Debug-Session-Id': 'f64b73'
-      },
-      body: JSON.stringify({
-        sessionId: 'f64b73',
-        runId: 'initial',
-        hypothesisId: 'H2',
-        location: 'src/App.jsx:stateSnapshot',
-        message: 'State snapshot after splash',
-        data: {
-          showSplash,
-          authLoading,
-          hasUser: !!user,
-          hasUserData: !!userData,
-          viewMode,
-          requiresAdminApproval,
-          isStudentDomain,
-          isFacultyDomain
-        },
-        timestamp: Date.now()
-      })
-    }).catch(() => { });
-    // #endregion agent log
-  }, [showSplash, authLoading, user, userData, viewMode, requiresAdminApproval, isStudentDomain, isFacultyDomain]);
-
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {showSplash ? (
-          <SplashScreen key="splash" onComplete={() => setShowSplash(false)} />
+          <SplashScreen
+            key="splash"
+            onComplete={() => {
+              setShowSplash(false);
+              try {
+                sessionStorage.setItem('messmeal_skip_splash', '1');
+              } catch {
+                // ignore
+              }
+            }}
+          />
         ) : (
           <motion.div
             key="main-content"

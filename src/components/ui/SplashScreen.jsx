@@ -3,24 +3,6 @@ import { motion } from 'framer-motion';
 
 export const SplashScreen = ({ onComplete }) => {
     useEffect(() => {
-        // #region agent log
-        fetch('http://127.0.0.1:7898/ingest/571b90a7-28dd-4b06-a301-b6aa045c1ce4', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Debug-Session-Id': 'f64b73'
-            },
-            body: JSON.stringify({
-                sessionId: 'f64b73',
-                runId: 'initial',
-                hypothesisId: 'H3',
-                location: 'src/components/ui/SplashScreen.jsx:useEffect',
-                message: 'SplashScreen mounted and timer set',
-                data: {},
-                timestamp: Date.now()
-            })
-        }).catch(() => { });
-        // #endregion agent log
         const timer = setTimeout(onComplete, 2500);
         return () => clearTimeout(timer);
     }, [onComplete]);
