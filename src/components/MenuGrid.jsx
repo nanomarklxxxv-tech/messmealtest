@@ -37,6 +37,18 @@ export const MenuGrid = ({ menu, isLoading, activeTimings, selectedDateStr, nutr
         );
     }
 
+    if (menu === 'CLOSED') {
+        return (
+            <div className="flex flex-col items-center justify-center p-14 bg-error/5 dark:bg-error/10 rounded-2xl border-2 border-error/20 shadow-md">
+                <div className="bg-error/10 p-4 rounded-full mb-4">
+                    <Utensils className="text-error" size={40} />
+                </div>
+                <h2 className="text-error font-black text-3xl text-center uppercase tracking-tighter mb-2">MESS CLOSED</h2>
+                <p className="text-dark dark:text-[#E0E0E0] font-bold text-lg text-center uppercase tracking-tight opacity-70">The mess is closed for today.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
             {/* ── HEADING ─────────────────────────────────── */}

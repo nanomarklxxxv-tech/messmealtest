@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { collection, query, onSnapshot, doc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { toast } from 'react-hot-toast';
 import { parseMenuXLSX, uploadMenuBatch } from '../lib/menuUtils';
 
@@ -63,6 +64,19 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [isLoadingReports, setIsLoadingReports] = useState(true);
     const [isLoadingNotices, setIsLoadingNotices] = useState(true);
 
+    const averageRatings = useMemo(() => {
+        const mealRatings = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
+        feedbacks.forEach(f => {
+            if (f.mealType && f.rating) mealRatings[f.mealType].push(f.rating);
+        });
+        const avgs = {};
+        Object.keys(mealRatings).forEach(m => {
+            const list = mealRatings[m];
+            avgs[m] = list.length > 0 ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : 'N/A';
+        });
+        return avgs;
+    }, [feedbacks]);
+
     // UI states
     const [searchQuery, setSearchQuery] = useState('');
     const [userFilter, setUserFilter] = useState('all'); // all, pending, students, faculty, admins
@@ -82,6 +96,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     // Notice state (targeting)
     const [noticeTitle, setNoticeTitle] = useState('');
     const [noticeMessage, setNoticeMessage] = useState('');
+    const [noticeExpiry, setNoticeExpiry] = useState('');
     const [noticeHostels, setNoticeHostels] = useState(['ALL']); // Array of selected hostels
     const [noticeMessTypes, setNoticeMessTypes] = useState(['ALL']); // Array of selected mess types
 
@@ -215,7 +230,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingProofs(false);
         });
         return () => unsub();
-    }, [user]); // removed activeTab dependency
+    }, [user?.uid]);
 
     // Fetch feedbacks (ratings) - REMOVE the tab guard
     useEffect(() => {
@@ -233,7 +248,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingFeedbacks(false);
         });
         return () => unsub();
-    }, [user]); // removed activeTab dependency
+    }, [user?.uid]);
 
     // Fetch reports (suggestions/bugs from student/faculty) - REMOVE the tab guard
     useEffect(() => {
@@ -251,7 +266,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingReports(false);
         });
         return () => unsub();
-    }, [user]); // removed activeTab dependency
+    }, [user?.uid]);
 
     // Update time every minute for greeting
     useEffect(() => {
@@ -262,9 +277,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     // Fetch notices
     useEffect(() => {
         setIsLoadingNotices(true);
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(20));
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(50));
         const unsub = onSnapshot(q, (snap) => {
-            setNotices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const today = new Date().toLocaleDateString('en-CA');
+            const validNotices = allNotices.filter(notice => {
+                if (!notice.expiresAt) return true;
+                return notice.expiresAt >= today;
+            });
+            setNotices(validNotices);
             setIsLoadingNotices(false);
         }, (error) => {
             console.error('Notices sync error:', error);
@@ -273,31 +294,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         return () => unsub();
     }, [user]);
 
-    // Fetch existing menu for editing
+    // Fetch existing menu for editing (MONTHLY FORMAT)
     useEffect(() => {
-        if (activeTab !== 'menus') return;
-        const q = query(
-            collection(db, 'artifacts', appId, 'public', 'data', 'menus'),
-            where('date', '==', menuDate),
-            where('hostel', '==', menuHostel),
-            where('messType', '==', menuType),
-            limit(1)
-        );
-        const unsub = onSnapshot(q, (snap) => {
-            if (!snap.empty) {
-                const data = snap.docs[0].data();
-                setMenuInputs({
-                    breakfast: data.breakfast || '',
-                    lunch: data.lunch || '',
-                    snacks: data.snacks || '',
-                    dinner: data.dinner || ''
-                });
+        if (activeTab !== 'menus' || !menuDate) return;
+        const d = new Date(menuDate + 'T00:00:00');
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const dayNum = d.getDate();
+        const docId = `${menuHostel}_${menuType}_${year}_${month}`;
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
+
+        const unsub = onSnapshot(docRef, (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                const dayMenu = data.days?.find(day => day.dates?.includes(dayNum));
+                if (dayMenu) {
+                    setMenuInputs({
+                        breakfast: Array.isArray(dayMenu.breakfast) ? dayMenu.breakfast.join('\n') : dayMenu.breakfast || '',
+                        lunch: Array.isArray(dayMenu.lunch) ? dayMenu.lunch.join('\n') : dayMenu.lunch || '',
+                        snacks: Array.isArray(dayMenu.snacks) ? dayMenu.snacks.join('\n') : dayMenu.snacks || '',
+                        dinner: Array.isArray(dayMenu.dinner) ? dayMenu.dinner.join('\n') : dayMenu.dinner || ''
+                    });
+                } else {
+                    setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
+                }
             } else {
                 setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
             }
-        }, (error) => console.log('Menu fetch error:', error));
+        });
         return () => unsub();
-    }, [activeTab, menuDate, menuHostel, menuType, user]);
+    }, [activeTab, menuDate, menuHostel, menuType, user?.uid]);
 
     // --- Actions ---
 
@@ -723,16 +749,21 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), {
                 title: noticeTitle,
                 message: noticeMessage,
+                expiresAt: noticeExpiry || null,
                 targetHostels: finalHostels,
                 targetMessTypes: finalMessTypes,
                 createdAt: serverTimestamp()
             });
             setNoticeTitle('');
             setNoticeMessage('');
+            setNoticeExpiry('');
             setNoticeHostels(['ALL']);
             setNoticeMessTypes(['ALL']);
             toast.success("Notice published!");
-        } catch (err) { toast.error("Error creating notice"); }
+        } catch (err) {
+            console.error(err);
+            toast.error("Error creating notice");
+        }
     };
 
     const deleteNotice = (id) => {
@@ -783,26 +814,73 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 message: `Successfully updating ${session} for ${targetHostels.length} hostel(s) on ${menuDate}. Changes will reflect shortly.`
             });
 
+            const dObj = new Date(menuDate + 'T00:00:00');
+            const year = dObj.getFullYear();
+            const month = dObj.getMonth();
+            const dayNum = dObj.getDate();
+
             for (const rawHostel of targetHostels) {
                 const hostel = String(rawHostel).trim().toUpperCase();
                 for (const rawMType of targetMessTypes) {
                     const mType = String(rawMType).trim().toUpperCase();
-                    const docId = `${hostel}_${mType}_${menuDate}`;
+                    const docId = `${hostel}_${mType}_${year}_${month}`;
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
-                    const data = {
-                        date: menuDate,
-                        hostel: hostel,
-                        messType: mType,
-                        [session.toLowerCase()]: menuInputs[session.toLowerCase()],
-                        updatedAt: serverTimestamp(),
-                        updatedBy: user.uid
-                    };
-                    await setDoc(docRef, data, { merge: true });
+
+                    const snap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'menus'), where('__name__', '==', docId)));
+                    let monthData = { hostel, messType, year, month, days: [] };
+                    if (!snap.empty) monthData = snap.docs[0].data();
+
+                    const days = [...(monthData.days || [])];
+                    let dayIdx = days.findIndex(d => d.dates?.includes(dayNum));
+
+                    if (dayIdx >= 0) {
+                        days[dayIdx][session.toLowerCase()] = menuInputs[session.toLowerCase()];
+                    } else {
+                        days.push({
+                            dates: [dayNum],
+                            [session.toLowerCase()]: menuInputs[session.toLowerCase()],
+                        });
+                    }
+
+                    await setDoc(docRef, { ...monthData, days, updatedAt: serverTimestamp() }, { merge: true });
                 }
             }
-            toast.success(`${session} updated successfully!`);
-        } catch { toast.error(`Failed to update ${session}`); }
+            toast.success("Menu updated successfully!");
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to update menu");
+        }
     };
+
+    const toggleMessClosure = async () => {
+        try {
+            const h = menuHostel.trim().toUpperCase();
+            const m = menuType.trim().toUpperCase();
+            const closureId = `${h}_${m}_${menuDate}`;
+            const ref = doc(db, 'artifacts', appId, 'public', 'data', 'mess_closures', closureId);
+
+            const snap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'mess_closures'), where('__name__', '==', closureId)));
+            const currentlyClosed = !snap.empty && snap.docs[0].data().isClosed;
+
+            if (currentlyClosed) {
+                await deleteDoc(ref);
+                toast.success("Mess marked as OPEN");
+            } else {
+                await setDoc(ref, {
+                    date: menuDate,
+                    hostel: h,
+                    messType: m,
+                    isClosed: true,
+                    reason: 'Holiday / Special Event',
+                    createdAt: serverTimestamp()
+                });
+                toast.success("Mess marked as CLOSED");
+            }
+        } catch (err) {
+            toast.error("Failed to toggle closure");
+        }
+    };
+
 
     const processCSV = async () => {
         if (!csvFile) return;
@@ -1025,25 +1103,30 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         try {
             setShowBouncingLogo(true);
             const maintenance = config.maintenance || {};
+            const zip = new JSZip();
 
             if (type === 'ratings') {
-                // Download CSV
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'ratings'));
                 const snap = await getDocs(q);
                 const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (data.length > 0) exportToExcel(data, `MessMeal_Ratings_Backup_${maintenanceStatus.ratingsPeriod.replace(/ /g, '_')}`);
 
-                // Delete all ratings
+                if (data.length > 0) {
+                    const csvContent = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(data));
+                    zip.file(`Ratings_${maintenanceStatus.ratingsPeriod.replace(/ /g, '_')}.csv`, csvContent);
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    const url = URL.createObjectURL(content);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `MessMeal_Ratings_${maintenanceStatus.ratingsPeriod.replace(/ /g, '_')}.zip`;
+                    link.click();
+                }
+
                 const batch = writeBatch(db);
                 snap.docs.forEach(d => batch.delete(d.ref));
                 await batch.commit();
 
-                // Update config
                 await onUpdateConfig({
-                    maintenance: {
-                        ...maintenance,
-                        lastRatingsReset: serverTimestamp()
-                    }
+                    maintenance: { ...maintenance, lastRatingsReset: serverTimestamp() }
                 });
                 setSuccessModal({
                     isOpen: true,
@@ -1052,23 +1135,27 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 });
                 toast.success("Ratings cleared successfully!");
             } else if (type === 'proofs') {
-                // Download CSV
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'proofs'));
                 const snap = await getDocs(q);
                 const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                if (data.length > 0) exportToExcel(data, `MessMeal_Proofs_Backup_${maintenanceStatus.proofsPeriod.replace(/ /g, '_')}`);
 
-                // Delete records AND Storage Files (simulated delete records)
+                if (data.length > 0) {
+                    const csvContent = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(data));
+                    zip.file(`Proofs_${maintenanceStatus.proofsPeriod.replace(/ /g, '_')}.csv`, csvContent);
+                    const content = await zip.generateAsync({ type: 'blob' });
+                    const url = URL.createObjectURL(content);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `MessMeal_Proofs_${maintenanceStatus.proofsPeriod.replace(/ /g, '_')}.zip`;
+                    link.click();
+                }
+
                 const batch = writeBatch(db);
                 snap.docs.forEach(d => batch.delete(d.ref));
                 await batch.commit();
 
-                // Update config
                 await onUpdateConfig({
-                    maintenance: {
-                        ...maintenance,
-                        lastProofsReset: serverTimestamp()
-                    }
+                    maintenance: { ...maintenance, lastProofsReset: serverTimestamp() }
                 });
                 setSuccessModal({
                     isOpen: true,
@@ -1109,7 +1196,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             case 'dashboard': {
                 const greeting = getGreeting();
                 return (
-                    <div className="space-y-8">
+                    <div className="space-y-8 animate-fade-in">
                         {/* Welcome Banner */}
                         <div className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-[#6366F1] via-[#8B5CF6] to-[#D946EF] text-white shadow-xl">
                             {/* Decorative background icon */}
@@ -1131,7 +1218,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         </div>
                                         <span className="text-white/40">|</span>
                                         <span className="text-sm opacity-90">
-                                            Managing {isSuperAdmin ? 'All Hostels (MH-1 to LH-7)' : (userData?.hostel || 'Hostel')}
+                                            Managing {isSuperAdmin ? 'All Hostels' : (userData?.hostel || 'Hostel')}
                                         </span>
                                     </div>
                                 </div>
@@ -1152,13 +1239,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             </div>
                         </div>
 
+                        {/* Quick Stats Summary */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {MEAL_ORDER.map(meal => (
+                                <div key={meal} className="bg-white dark:bg-[#16162A] p-5 rounded-2xl border border-black/5 dark:border-white/5 shadow-sm">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{meal} Avg</p>
+                                        <Star size={14} className="text-amber-400 fill-amber-400" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <p className="text-3xl font-black text-dark dark:text-white">{averageRatings[meal]}</p>
+                                        <span className="text-xs font-bold text-zinc-400">/ 5.0</span>
+                                    </div>
+                                </div>
+                            ))}
+                            <div className="bg-primary/5 dark:bg-primary/20 p-5 rounded-2xl border border-primary/20 shadow-sm relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/70">Global Score</p>
+                                    <BarChart3 size={14} className="text-primary" />
+                                </div>
+                                <p className="text-3xl font-black text-primary">{stats.avgRating}</p>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
                             {[
                                 { label: 'Online Now', value: stats.onlineUsers, icon: Globe, hero: true, loading: isLoadingUsers, color: 'bg-emerald-600' },
                                 { label: 'Registered', value: stats.totalUsers, icon: Users, hero: true, loading: isLoadingUsers, color: 'bg-indigo-600' },
                                 { label: 'Students', value: stats.students, icon: User, iconColor: 'text-blue-500 dark:text-blue-400', badgeBg: 'bg-blue-50 dark:bg-blue-900/30', loading: isLoadingUsers },
                                 { label: 'Pending', value: stats.pendingUsers, icon: Clock4, iconColor: 'text-amber-500', badgeBg: 'bg-amber-50 dark:bg-amber-900/30', loading: isLoadingUsers },
-                                { label: 'Avg Rating', value: stats.avgRating, icon: Star, iconColor: 'text-purple-500 dark:text-purple-400', badgeBg: 'bg-purple-50 dark:bg-purple-900/30', loading: isLoadingFeedbacks }
+                                { label: 'Reports', value: stats.pendingReports, icon: ShieldAlert, iconColor: 'text-error', badgeBg: 'bg-error/10', loading: isLoadingReports }
                             ].map((stat, i) => (
                                 stat.hero ? (
                                     /* Hero card — accent colored */
@@ -1180,7 +1290,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     /* Regular cards */
                                     <div key={stat.label} className="p-5 rounded-2xl flex flex-col transition-transform hover:-translate-y-1 duration-200
                                         bg-white dark:bg-[#16162A] border border-[#EEEEEE] dark:border-[#1E1E35] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none relative">
-                                        {stat.label === 'Pending Approval' && stat.value > 0 && (
+                                        {stat.label === 'Pending' && stat.value > 0 && (
                                             <div className="absolute top-3 right-3 flex items-center gap-1.5">
                                                 <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                                                 <span className="text-[7px] font-black uppercase tracking-widest text-amber-500">Live</span>
@@ -1415,6 +1525,17 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         onChange={(e) => setNoticeMessage(e.target.value)}
                                         placeholder="Write your announcement here..."
                                         className="w-full p-4 bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-2xl h-36 resize-none outline-none focus:border-[#2E7D32] dark:focus:border-[#7C3AED] focus:ring-4 focus:ring-[#2E7D32]/5 text-zinc-900 dark:text-white placeholder-zinc-400 transition-all shadow-inner"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] ml-1">Expiry Date (Optional)</label>
+                                    <input
+                                        type="date"
+                                        value={noticeExpiry}
+                                        onChange={(e) => setNoticeExpiry(e.target.value)}
+                                        min={new Date().toLocaleDateString('en-CA')}
+                                        className="w-full p-4 bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-2xl outline-none focus:border-[#2E7D32] dark:focus:border-[#7C3AED] focus:ring-4 focus:ring-[#2E7D32]/5 text-zinc-900 dark:text-white transition-all shadow-inner"
                                     />
                                 </div>
 
@@ -2931,7 +3052,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         <div className="bg-zinc-100 dark:bg-[#1E1E35] px-4 py-1.5 rounded-full border border-zinc-200 dark:border-[#1E1E2E] flex items-center gap-3">
                             <Clock4 size={14} className="text-[#2E7D32] dark:text-[#7C3AED]" />
                             <span className="text-xs font-black text-[#0D0D0D] dark:text-[#F0F0FF] tracking-widest tabular-nums uppercase">
-                                {currentTime.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
+                                {currentTime.toLocaleDateString('en-CA')} • {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
                             </span>
                         </div>
                     </div>

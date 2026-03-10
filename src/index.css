@@ -58,41 +58,52 @@
   }
 
   /* Keep theme variations working — in light+dark they override primary only */
-  .theme-orange {
-    --color-primary: 249 115 22; /* Orange 500 */
-    --color-accent: 251 146 60;  /* Orange 400 */
-  }
-
   .theme-blue {
-    --color-primary: 0 87 255;   /* Bold Medical Blue */
+    --color-primary: 0 87 255;
+    /* Bold Medical Blue */
     --color-accent: 66 135 255;
   }
 
   .theme-green {
-    --color-primary: 16 185 129; /* Emerald 500 */
-    --color-accent: 52 211 153;  /* Emerald 400 */
+    --color-primary: 16 185 129;
+    /* Emerald 500 */
+    --color-accent: 52 211 153;
+    /* Emerald 400 */
   }
 
   .theme-purple {
-    --color-primary: 168 85 247; /* Purple 500 */
+    --color-primary: 168 85 247;
+    /* Purple 500 */
     --color-accent: 192 132 252;
   }
 
   .theme-indigo {
-    --color-primary: 99 102 241; /* Indigo 500 */
+    --color-primary: 99 102 241;
+    /* Indigo 500 */
     --color-accent: 129 140 248;
   }
 
   /* Refined Electric Theme Colors for Dark Mode */
-  .dark .theme-orange { --color-primary: 251 146 60; }
-  .dark .theme-blue { --color-primary: 96 165 250; }
-  .dark .theme-green { --color-primary: 52 211 153; }
-  .dark .theme-purple { --color-primary: 192 132 252; }
-  .dark .theme-indigo { --color-primary: 129 140 248; }
+  .dark .theme-blue {
+    --color-primary: 96 165 250;
+  }
+
+  .dark .theme-green {
+    --color-primary: 52 211 153;
+  }
+
+  .dark .theme-purple {
+    --color-primary: 192 132 252;
+  }
+
+  .dark .theme-indigo {
+    --color-primary: 129 140 248;
+  }
 
   /* Default Dark Mode Glow (if no theme selected or fallback) */
   .dark:not([class*='theme-']) {
-    --color-primary: 212 240 0; /* Nike Yellow */
+    --color-primary: 212 240 0;
+    /* Nike Yellow */
   }
 }
 

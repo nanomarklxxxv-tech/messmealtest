@@ -62,9 +62,9 @@ const App = () => {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('messmeal_settings');
-      return saved ? JSON.parse(saved) : { theme: 'orange', darkMode: false, fontScale: 1.0, avatar: 'boy' };
+      return saved ? JSON.parse(saved) : { theme: 'blue', darkMode: false, fontScale: 1.0, avatar: 'boy' };
     } catch {
-      return { theme: 'orange', darkMode: false, fontScale: 1.0, avatar: 'boy' };
+      return { theme: 'blue', darkMode: false, fontScale: 1.0, avatar: 'boy' };
     }
   });
 
@@ -205,52 +205,35 @@ const App = () => {
 
     try {
       const result = await signInWithPopup(auth, provider);
-      const email = result.user.email;
+      const email = result.user.email.toLowerCase();
 
-      const superAdminEmail = config?.superAdminEmail || INITIAL_SUPER_ADMIN_EMAIL;
-      const isSuperAdminEmail = email.toLowerCase() === superAdminEmail.toLowerCase();
-      const isAllowedDomain = ALLOWED_DOMAINS.some(domain => email.endsWith(domain));
+      const superAdminEmail = (config?.superAdminEmail || INITIAL_SUPER_ADMIN_EMAIL).toLowerCase();
+      const isSuperAdminEmail = email === superAdminEmail;
 
-      // Allow Super Admin to bypass domain restriction
-      if (!isAllowedDomain && !isSuperAdminEmail) {
-        // We also check if they are an existing admin after the initial domain check fails
-        const userRef = doc(db, 'artifacts', appId, 'users', result.user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists() || (userSnap.data().role !== 'admin' && userSnap.data().role !== 'super_admin')) {
-          await auth.signOut();
-          setAuthError('Please use your VIT-AP email address to sign in.');
-          toast.error('Invalid email domain.');
-          setActionLoading(false);
-          return;
-        }
-      }
+      const isStudentDomain = email.endsWith('@vitapstudent.ac.in');
+      const isFacultyDomain = email.endsWith('@vitap.ac.in') || email.endsWith('@vit.ac.in');
 
       // Check if user exists
       const userRef = doc(db, 'artifacts', appId, 'users', result.user.uid);
       const userSnap = await getDoc(userRef);
 
       if (!userSnap.exists()) {
-        let role = 'student';
+        let role = 'pending';
         let approved = false;
-
-        // Default to auto-approval if config not yet loaded or missing
-        const isAutoApprove = config?.autoApproveDomainUsers ?? true;
 
         if (isSuperAdminEmail) {
           role = 'super_admin';
           approved = true;
-        } else if (email.endsWith('@vitapstudent.ac.in')) {
-          // Student email domain: always allow student interface without approval gating
+        } else if (isStudentDomain) {
           role = 'student';
           approved = true;
-        } else if (email.endsWith('@vitap.ac.in') || email.endsWith('@vit.ac.in')) {
-          // Faculty/admin-like domains should require explicit approval for admin interface
+        } else if (isFacultyDomain) {
           role = 'faculty';
-          approved = false;
-        } else if (isAutoApprove) {
-          // Fallback for any other allowed domain when auto-approval is enabled
           approved = true;
+        } else {
+          // Rule 4: Any other domain (including @gmail.com)
+          role = 'pending';
+          approved = false;
         }
 
         const newUserData = {
@@ -262,28 +245,28 @@ const App = () => {
         };
 
         await setDoc(userRef, newUserData);
-        toast.success("Account created! Please complete your profile.");
+        if (approved) {
+          toast.success("Account created! Welcome.");
+        } else {
+          toast.success("Account created! Awaiting admin approval.");
+        }
       } else {
         const existingData = userSnap.data();
-        let currentRole = existingData.role;
 
-        // Force Super Admin role and approval if email matches, even for existing accounts
-        if (isSuperAdminEmail && (currentRole !== 'super_admin' || !existingData.approved)) {
+        // Force Super Admin role and approval if email matches
+        if (isSuperAdminEmail && (existingData.role !== 'super_admin' || !existingData.approved)) {
           await updateDoc(userRef, { role: 'super_admin', approved: true });
           toast.success("Super Admin access refreshed!");
-        }
-        // Promote student to faculty if they now have faculty email
-        else if (currentRole === 'student' && (email.endsWith('@vitap.ac.in') || email.endsWith('@vit.ac.in'))) {
-          await updateDoc(userRef, { role: 'faculty', approved: false });
-          toast.success("Account moved to faculty! Awaiting approval.");
+        } else if (existingData.role === 'revoked') {
+          // Handled in the render section (Rule 4)
         } else {
           toast.success(`Welcome back, ${existingData.name || existingData.email.split('@')[0]}!`);
         }
       }
 
-      // Force viewMode to show restriction if they clicked the wrong portal
+      // Force viewMode based on role/intended target
       if (intendedRole === 'admin' || intendedRole === 'faculty') setViewMode('admin');
-      else if (intendedRole === 'student') setViewMode('user');
+      else setViewMode('user');
 
     } catch (error) {
       if (error.code !== 'auth/popup-closed-by-user') {
@@ -358,6 +341,40 @@ const App = () => {
                 loading={actionLoading}
                 error={authError}
               />
+            ) : userData?.role === 'revoked' ? (
+              <div className="min-h-screen bg-page flex items-center justify-center p-4">
+                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="bg-white dark:bg-[#1A1A1A] p-8 rounded-[2rem] shadow-xl max-w-md w-full text-center border border-error/20">
+                  <div className="w-20 h-20 bg-error/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Shield className="text-error" size={40} />
+                  </div>
+                  <h2 className="text-2xl font-black text-dark dark:text-white mb-2 uppercase tracking-tight">Access Denied</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400 font-medium mb-8 leading-relaxed">
+                    Contact the mess admin. Your access has been restricted.
+                  </p>
+                  <button onClick={logout} className="w-full py-4 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-dark dark:text-white font-black rounded-2xl transition-all uppercase tracking-widest text-sm flex items-center justify-center gap-2">
+                    Logout from {user.email}
+                  </button>
+                </motion.div>
+              </div>
+            ) : !userData?.approved ? (
+              <div className="min-h-screen bg-page flex items-center justify-center p-4 text-center">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-[#1A1A1A] p-8 rounded-[2rem] shadow-xl max-w-md w-full border border-primary/10">
+                  <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Clock4 className="text-primary animate-pulse" size={40} />
+                  </div>
+                  <h2 className="text-2xl font-black text-dark dark:text-white mb-2 uppercase tracking-tight">Waiting for Approval</h2>
+                  <div className="space-y-1 mb-8">
+                    <p className="text-sm font-bold text-dark dark:text-white">{userData?.name || user.displayName}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">{user.email}</p>
+                  </div>
+                  <p className="text-zinc-500 dark:text-zinc-400 font-medium mb-8 leading-relaxed px-4">
+                    Your account is pending administrator approval. Please check back later.
+                  </p>
+                  <button onClick={logout} className="w-full py-4 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-dark dark:text-white font-black rounded-2xl transition-all uppercase tracking-widest text-sm">
+                    Logout
+                  </button>
+                </motion.div>
+              </div>
             ) : !userData?.hostel || !userData?.messType ? (
               <ProfileSetupScreen
                 user={user}
@@ -366,32 +383,18 @@ const App = () => {
                 config={config}
               />
             ) : viewMode === 'admin' && (isFacultyDomain || userData?.role === 'admin' || userData?.role === 'super_admin') ? (
-              requiresAdminApproval ? (
-                <UserDashboard
+              <ErrorBoundary>
+                <AdminDashboard
                   user={user}
                   userData={userData}
                   onLogout={logout}
-                  onSwitchToAdmin={() => setViewMode('admin')}
-                  canSwitchToAdmin={true} // They are already in admin view mode conceptually
+                  onSwitchToUser={() => setViewMode('user')}
                   config={config}
+                  onUpdateConfig={onUpdateConfig}
                   settings={settings}
                   updateSettings={updateSettings}
-                  isPending={true}
                 />
-              ) : (
-                <ErrorBoundary>
-                  <AdminDashboard
-                    user={user}
-                    userData={userData}
-                    onLogout={logout}
-                    onSwitchToUser={() => setViewMode('user')}
-                    config={config}
-                    onUpdateConfig={onUpdateConfig}
-                    settings={settings}
-                    updateSettings={updateSettings}
-                  />
-                </ErrorBoundary>
-              )
+              </ErrorBoundary>
             ) : (
               <UserDashboard
                 user={user}
@@ -402,7 +405,7 @@ const App = () => {
                 config={config}
                 settings={settings}
                 updateSettings={updateSettings}
-                isPending={userData?.role === 'faculty' && !userData?.approved} // Student are auto-approved
+                isPending={false} // Only reached if approved
               />
             )}
             <InstallAppModal />

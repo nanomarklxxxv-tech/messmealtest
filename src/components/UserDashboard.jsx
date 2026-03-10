@@ -16,7 +16,7 @@ import { DateStrip } from './DateStrip';
 import { MenuGrid } from './MenuGrid';
 import { WeeklyMenuGrid } from './WeeklyMenuGrid';
 import { ProfileSetupScreen } from './ProfileSetup';
-import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
+import { SuccessModal } from './ui/SuccessModal';
 import { callGemini, callCalorieNinjas, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
 import { DEFAULT_MEAL_TIMINGS, MEAL_ORDER, DEFAULT_RATING_WINDOW, DEFAULT_TAGLINE, MEAL_ACCENTS } from '../lib/constants';
 
@@ -44,6 +44,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [selectedImage, setSelectedImage] = useState(null);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [showNotices, setShowNotices] = useState(false);
+    const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
     const isFirstNoticeLoad = React.useRef(true);
 
     // Notification preferences (persisted in localStorage per user)
@@ -65,7 +66,8 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [systemNotifPermission, setSystemNotifPermission] = useState(() => getNotifPermission());
 
     const isFaculty = userData?.role === 'faculty';
-    const theme = isFaculty ? 'purple' : 'orange';
+    const theme = isFaculty ? 'purple' : settings?.theme || 'blue';
+
     const activeTimings = useMemo(() => {
         // Base timings: Default -> Config Permanent
         const base = { ...DEFAULT_MEAL_TIMINGS, ...(config?.mealTimings || {}) };
@@ -100,31 +102,29 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         const docId = `${h}_${m}_${year}_${month}`;
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
 
-        const unsub = onSnapshot(docRef, (snap) => {
-            if (snap.exists()) {
-                const monthData = snap.data();
-                if (monthData && Array.isArray(monthData.days)) {
-                    const dayMenu = monthData.days.find(
-                        d => Array.isArray(d.dates) && d.dates.includes(dayNumber)
-                    );
-                    if (dayMenu) {
-                        setMenu({
-                            breakfast: Array.isArray(dayMenu.breakfast)
-                                ? dayMenu.breakfast.join('\n')
-                                : dayMenu.breakfast || '',
-                            lunch: Array.isArray(dayMenu.lunch)
-                                ? dayMenu.lunch.join('\n')
-                                : dayMenu.lunch || '',
-                            snacks: Array.isArray(dayMenu.snacks)
-                                ? dayMenu.snacks.join('\n')
-                                : dayMenu.snacks || '',
-                            dinner: Array.isArray(dayMenu.dinner)
-                                ? dayMenu.dinner.join('\n')
-                                : dayMenu.dinner || '',
-                        });
-                    } else {
-                        setMenu(null);
-                    }
+        // Mess Closure check
+        const closureRef = doc(db, 'artifacts', appId, 'public', 'data', 'mess_closures', `${h}_${m}_${selectedDate}`);
+
+        let menuData = null;
+        let closureData = null;
+
+        const syncMenu = () => {
+            if (closureData && closureData.isClosed) {
+                setMenu('CLOSED');
+                setIsLoadingMenu(false);
+                return;
+            }
+
+            if (menuData) {
+                const dayMenu = menuData.days?.find(d => d.dates?.includes(dayNumber));
+                if (dayMenu) {
+                    setMenu({
+                        breakfast: Array.isArray(dayMenu.breakfast) ? dayMenu.breakfast.join('\n') : dayMenu.breakfast || '',
+                        lunch: Array.isArray(dayMenu.lunch) ? dayMenu.lunch.join('\n') : dayMenu.lunch || '',
+                        snacks: Array.isArray(dayMenu.snacks) ? dayMenu.snacks.join('\n') : dayMenu.snacks || '',
+                        dinner: Array.isArray(dayMenu.dinner) ? dayMenu.dinner.join('\n') : dayMenu.dinner || '',
+                        reason: ''
+                    });
                 } else {
                     setMenu(null);
                 }
@@ -132,18 +132,27 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 setMenu(null);
             }
             setIsLoadingMenu(false);
-        }, (err) => {
-            console.error('Menu fetch error:', err);
-            toast.error('Failed to load menu');
-            setIsLoadingMenu(false);
+        };
+
+        const unsubMenu = onSnapshot(docRef, (snap) => {
+            menuData = snap.exists() ? snap.data() : null;
+            syncMenu();
         });
 
-        return () => unsub();
+        const unsubClosure = onSnapshot(closureRef, (snap) => {
+            closureData = snap.exists() ? snap.data() : null;
+            syncMenu();
+        });
+
+        return () => {
+            unsubMenu();
+            unsubClosure();
+        };
     }, [selectedDate, userData?.hostel, userData?.messType]);
 
-    // Fetch ratings
+    // Fetch ratings - Move outside tab guard
     useEffect(() => {
-        if (!user?.uid || activeTab !== 'feedback') return;
+        if (!user?.uid) return;
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'ratings'),
             where('studentId', '==', user.uid),
@@ -158,10 +167,9 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             setSubmittedRatings(userRatings);
         }, (err) => {
             console.error("Ratings fetch error:", err);
-            toast.error("Failed to sync ratings");
         });
         return () => unsub();
-    }, [user?.uid, selectedDate, activeTab]);
+    }, [user?.uid, selectedDate]);
 
     // Fetch notices
     useEffect(() => {
@@ -172,7 +180,11 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const h = (userData?.hostel || "").trim().toUpperCase();
             const m = (userData?.messType || "").trim().toUpperCase();
+            const today = new Date().toLocaleDateString('en-CA');
             const relevant = allNotices.filter(n => {
+                // Expiry Check
+                if (n.expiresAt && n.expiresAt < today) return false;
+
                 const targetHostels = Array.isArray(n.targetHostels) ? n.targetHostels.map(x => String(x).trim().toUpperCase()) : (n.hostel ? [String(n.hostel).trim().toUpperCase()] : ['ALL']);
                 const targetMessTypes = Array.isArray(n.targetMessTypes) ? n.targetMessTypes.map(x => String(x).trim().toUpperCase()) : (n.messType ? [String(n.messType).trim().toUpperCase()] : ['ALL']);
                 return (targetHostels.includes('ALL') || targetHostels.includes(h)) &&
@@ -287,7 +299,11 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 delete updated[meal];
                 return updated;
             });
-            toast.success(`${meal} rating submitted!`);
+            setSuccessModal({
+                isOpen: true,
+                title: "Rating Submitted! ✓",
+                message: `Your ${meal} rating has been recorded. Thank you!`
+            });
         } catch (error) {
             console.error("Submit error:", error);
             toast.error("Failed to submit rating.");
@@ -296,61 +312,8 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         }
     };
 
-    const submitAllRatings = async () => {
-        if (isPending) return toast.error("Please wait for account approval to submit ratings.");
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        // Only allow submitting ratings for today
-        if (selectedDate !== todayStr) {
-            toast.error("You can only submit ratings for today");
-            return;
-        }
+    // Remove submitAllRatings completely as requested
 
-        // Get all meals that are allowed, have a rating, and haven't been submitted yet
-        const mealsToSubmit = MEAL_ORDER.filter(meal =>
-            isRatingAllowed(meal) && ratings[meal] && !submittedRatings[meal]
-        );
-
-        if (mealsToSubmit.length === 0) {
-            toast.error("No new ratings to submit. Rate at least one meal first.");
-            return;
-        }
-
-        setSubmittingAll(true);
-        let successCount = 0;
-        try {
-            for (const meal of mealsToSubmit) {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'ratings'), {
-                    studentId: user.uid,
-                    studentName: userData.name,
-                    hostel: userData.hostel,
-                    messType: userData.messType,
-                    date: selectedDate,
-                    mealType: meal,
-                    rating: ratings[meal],
-                    comment: ratingComments[meal] || '',
-                    createdAt: serverTimestamp()
-                });
-                successCount++;
-            }
-            // Clear submitted ratings from local state
-            setRatings(prev => {
-                const updated = { ...prev };
-                mealsToSubmit.forEach(meal => delete updated[meal]);
-                return updated;
-            });
-            setRatingComments(prev => {
-                const updated = { ...prev };
-                mealsToSubmit.forEach(meal => delete updated[meal]);
-                return updated;
-            });
-            toast.success(`${successCount} meal rating${successCount > 1 ? 's' : ''} submitted successfully!`);
-        } catch (error) {
-            console.error("Submit error:", error);
-            toast.error("Failed to submit ratings. Please try again.");
-        } finally {
-            setSubmittingAll(false);
-        }
-    };
 
     const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
@@ -409,7 +372,11 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             });
             setComplaintText('');
             setProofFiles([]);
-            toast.success("Complaint submitted successfully!");
+            setSuccessModal({
+                isOpen: true,
+                title: "Complaint Submitted! ✓",
+                message: "Your complaint has been received. Admin will review it shortly."
+            });
         } catch {
             toast.error("Failed to submit complaint");
         }
@@ -735,38 +702,11 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                 })}
                             </div>
 
-                            {/* Single Submit All button at the bottom */}
-                            {selectedDate === new Date().toLocaleDateString('en-CA') ? (() => {
-                                const pendingMeals = MEAL_ORDER.filter(m => isRatingAllowed(m) && ratings[m] && !submittedRatings[m]);
-                                return (
-                                    <div className="mt-6 pt-4 border-t border-black/5 dark:border-white/5">
-                                        {pendingMeals.length > 0 ? (
-                                            <Button
-                                                onClick={submitAllRatings}
-                                                disabled={submittingAll}
-                                                loading={submittingAll}
-                                                className="w-full py-4 text-base font-black"
-                                            >
-                                                {submittingAll ? 'Submitting...' : `Submit All Ratings (${pendingMeals.length} meal${pendingMeals.length > 1 ? 's' : ''})`}
-                                            </Button>
-                                        ) : (
-                                            <p className="text-center text-sm text-zinc-400 dark:text-zinc-500 font-medium">
-                                                {MEAL_ORDER.every(m => !isRatingAllowed(m) || submittedRatings[m]) ? (
-                                                    <span className="flex items-center justify-center gap-2 text-green-500"><CheckCircle2 size={16} /> All available meals rated!</span>
-                                                ) : (
-                                                    'Select star ratings above, then submit all at once'
-                                                )}
-                                            </p>
-                                        )}
-                                    </div>
-                                );
-                            })() : (
-                                <div className="mt-6 pt-4 border-t border-black/5 dark:border-white/5 text-center">
-                                    <p className="text-sm font-bold text-zinc-400 flex items-center justify-center gap-2">
-                                        <LockIcon size={14} /> Ratings are locked — you can only rate today's meals
-                                    </p>
-                                </div>
-                            )}
+                            <div className="mt-6 pt-4 border-t border-black/5 dark:border-white/5 text-center">
+                                <p className="text-sm font-bold text-zinc-400 flex items-center justify-center gap-2">
+                                    <LockIcon size={14} /> Ratings are locked — you can only rate today's meals
+                                </p>
+                            </div>
                         </Card>
                     </div>
                 )}
@@ -794,7 +734,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                         type="date"
                                         value={complaintDate}
                                         onChange={(e) => setComplaintDate(e.target.value)}
-                                        max={new Date().toISOString().split('T')[0]}
+                                        max={new Date().toLocaleDateString('en-CA')}
                                         className="w-full border border-black/10 dark:border-white/10 rounded-xl p-3 bg-page focus:outline-none focus:ring-2 focus:ring-primary/50 text-dark dark:text-white font-medium"
                                         style={{ colorScheme: 'dark' }}
                                     />
@@ -1038,9 +978,8 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                     <span className="text-sm font-bold text-mid uppercase tracking-widest block">
                                         Theme Color
                                     </span>
-                                    <div className="grid grid-cols-5 gap-3">
+                                    <div className="grid grid-cols-4 gap-3">
                                         {[
-                                            { id: 'orange', col: 'bg-orange-500' },
                                             { id: 'blue', col: 'bg-blue-600' },
                                             { id: 'green', col: 'bg-emerald-500' },
                                             { id: 'purple', col: 'bg-purple-500' },
@@ -1324,6 +1263,13 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                     </Card>
                 </div>
             )}
+
+            <SuccessModal
+                isOpen={successModal.isOpen}
+                onClose={() => setSuccessModal({ ...successModal, isOpen: false })}
+                title={successModal.title}
+                message={successModal.message}
+            />
         </div >
     );
 };
