@@ -20,7 +20,7 @@ import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 import { callGemini, callCalorieNinjas, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
 import { DEFAULT_MEAL_TIMINGS, MEAL_ORDER, DEFAULT_RATING_WINDOW, DEFAULT_TAGLINE, MEAL_ACCENTS } from '../lib/constants';
 
-export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings }) => {
+export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
     const [viewType, setViewType] = useState('day'); // 'day' or 'week'
     const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
@@ -29,6 +29,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [ratings, setRatings] = useState({});
     const [submittedRatings, setSubmittedRatings] = useState({});
     const [notices, setNotices] = useState([]);
+    const [isLoadingNotices, setIsLoadingNotices] = useState(true);
     const [nutritionTips, setNutritionTips] = useState({});
     const [aiLoading, setAiLoading] = useState(null);
     const [proofFiles, setProofFiles] = useState([]); // Array of strings (base64)
@@ -43,6 +44,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [selectedImage, setSelectedImage] = useState(null);
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [showNotices, setShowNotices] = useState(false);
+    const isFirstNoticeLoad = React.useRef(true);
 
     // Notification preferences (persisted in localStorage per user)
     const notifStorageKey = user?.uid ? `notifPrefs_${user.uid}` : null;
@@ -91,7 +93,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         if (!h || !m) return;
 
         setIsLoadingMenu(true);
-        setMenu(null);
+        // Do not clear menu immediately to avoid layout shift if same menu is fetched
 
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'menus'),
@@ -106,11 +108,10 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             setIsLoadingMenu(false);
         }, (err) => {
             console.error("Menu fetch error:", err);
+            toast.error("Failed to load menu");
             setIsLoadingMenu(false);
         });
-        return () => {
-            unsub();
-        };
+        return () => unsub();
     }, [selectedDate, userData?.hostel, userData?.messType]);
 
     // Fetch ratings
@@ -128,7 +129,10 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 userRatings[data.mealType] = { id: doc.id, ...data };
             });
             setSubmittedRatings(userRatings);
-        }, (err) => console.error("Ratings fetch error:", err));
+        }, (err) => {
+            console.error("Ratings fetch error:", err);
+            toast.error("Failed to sync ratings");
+        });
         return () => unsub();
     }, [user?.uid, selectedDate, activeTab]);
 
@@ -136,6 +140,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     useEffect(() => {
         if (!userData?.hostel) return;
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(20));
+        setIsLoadingNotices(true);
         const unsub = onSnapshot(q, (snap) => {
             const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const h = (userData?.hostel || "").trim().toUpperCase();
@@ -147,9 +152,17 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                     (targetMessTypes.includes('ALL') || targetMessTypes.includes(m));
             });
             setNotices(relevant);
-            // Fire notice notifications for relevant new notices
-            relevant.forEach(notice => maybeNotifyNotice(notice, notifPrefs));
-        }, (err) => console.error("Notices fetch error:", err));
+            // Fire notice notifications for relevant new notices — skip first load to avoid flooding
+            if (!isFirstNoticeLoad.current) {
+                relevant.forEach(notice => maybeNotifyNotice(notice, notifPrefs));
+            }
+            isFirstNoticeLoad.current = false;
+            setIsLoadingNotices(false);
+        }, (err) => {
+            console.error("Notices fetch error:", err);
+            toast.error("Failed to sync notices");
+            setIsLoadingNotices(false);
+        });
 
         return () => unsub();
     }, [userData?.hostel, userData?.messType]);
@@ -213,6 +226,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [submittingAll, setSubmittingAll] = useState(false);
 
     const submitMealRating = async (meal) => {
+        if (isPending) return toast.error("Please wait for account approval to submit ratings.");
         if (!ratings[meal]) return;
 
         const todayStr = new Date().toLocaleDateString('en-CA');
@@ -249,6 +263,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     };
 
     const submitAllRatings = async () => {
+        if (isPending) return toast.error("Please wait for account approval to submit ratings.");
         const todayStr = new Date().toLocaleDateString('en-CA');
         // Only allow submitting ratings for today
         if (selectedDate !== todayStr) {
@@ -336,6 +351,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     };
 
     const submitComplaint = async () => {
+        if (isPending) return toast.error("Please wait for account approval to submit reports.");
         if (!complaintText.trim() && proofFiles.length === 0) return toast.error("Please provide details or upload an image");
         setSubmitting(true);
         try {
@@ -412,7 +428,20 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     }
 
     if (showProfileEdit) {
-        return <ProfileSetupScreen user={user} userData={userData} onComplete={updateProfile} theme={theme} config={config} />;
+        return <ProfileSetupScreen
+            user={user}
+            userData={userData}
+            onComplete={(data) => {
+                if (isPending) {
+                    toast.error("Profile updates are disabled while pending approval.");
+                    return;
+                }
+                updateProfile(data);
+            }}
+            theme={theme}
+            config={config}
+            isReadOnly={isPending}
+        />;
     }
 
     return (
@@ -480,10 +509,33 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto p-4 pt-8 pb-32">
+            <main className="max-w-7xl mx-auto p-4 pb-32">
+                {isPending && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-8 mt-4 bg-amber-500/10 border border-amber-500/20 rounded-[2rem] p-6 flex items-center gap-5 shadow-sm"
+                    >
+                        <div className="p-3 bg-amber-500 rounded-2xl text-white">
+                            <Clock4 size={24} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-amber-500 uppercase tracking-widest mb-1">Account Pending Approval</h3>
+                            <p className="text-xs font-medium text-amber-500/70 leading-relaxed">
+                                You can view menus and notices now. Interactive features like ratings and reports will be enabled once an administrator approves your account.
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
                 {activeTab === 'menu' && (
                     <div className="space-y-8">
-                        {notices.length > 0 && notices.map(notice => (
+                        {isLoadingNotices ? (
+                            <div className="space-y-4 animate-pulse">
+                                {[1, 2].map(i => (
+                                    <div key={i} className="bg-white dark:bg-[#1A1A1A] border-l-4 border-zinc-200 p-4 rounded-xl shadow-sm h-24" />
+                                ))}
+                            </div>
+                        ) : notices.length > 0 ? notices.map(notice => (
                             <div key={notice.id} className="bg-warning/5 border-l-4 border-warning p-4 rounded-card dark:rounded-card-xl relative overflow-hidden shadow-card dark:shadow-card-dark">
                                 <div className="flex items-start gap-3">
                                     <div className="bg-warning/20 p-2.5 rounded-xl flex-shrink-0">
@@ -495,7 +547,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                     </div>
                                 </div>
                             </div>
-                        ))}
+                        )) : null}
                         <div className="flex justify-end mb-4">
                             <div className="bg-[#F0F0F0] dark:bg-[#1A1A1A] border border-[#E4E4E4] dark:border-[#2A2A2A] p-1 rounded-pill inline-flex">
                                 <button

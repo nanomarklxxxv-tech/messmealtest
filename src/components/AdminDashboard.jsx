@@ -52,11 +52,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [submitting, setSubmitting] = useState(false);
 
     // Data states
-    const [usersList, setUsersList] = useState([]);
-    const [proofs, setProofs] = useState([]);
-    const [feedbacks, setFeedbacks] = useState([]);
-    const [reports, setReports] = useState([]);
     const [notices, setNotices] = useState([]);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+    const [isLoadingProofs, setIsLoadingProofs] = useState(true);
+    const [isLoadingFeedbacks, setIsLoadingFeedbacks] = useState(true);
+    const [isLoadingReports, setIsLoadingReports] = useState(true);
+    const [isLoadingNotices, setIsLoadingNotices] = useState(true);
 
     // UI states
     const [searchQuery, setSearchQuery] = useState('');
@@ -181,32 +182,61 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Fetch users
     useEffect(() => {
+        setIsLoadingUsers(true);
         const q = query(collection(db, 'artifacts', appId, 'users'));
-        const unsub = onSnapshot(q, (snap) => setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() }))), () => toast.error("Error loading users"));
+        const unsub = onSnapshot(q, (snap) => {
+            setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsLoadingUsers(false);
+        }, (error) => {
+            console.error("Users sync error:", error);
+            toast.error("Failed to sync users");
+            setIsLoadingUsers(false);
+        });
         return () => unsub();
     }, [user]);
 
     // Fetch proofs (complaints)
     useEffect(() => {
         if (activeTab !== 'proofs' && activeTab !== 'dashboard') return;
+        setIsLoadingProofs(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'proofs'), orderBy('createdAt', 'desc'), limit(50));
-        const unsub = onSnapshot(q, (snap) => setProofs(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (error) => console.log('Proofs error:', error));
+        const unsub = onSnapshot(q, (snap) => {
+            setProofs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsLoadingProofs(false);
+        }, (error) => {
+            console.error('Proofs sync error:', error);
+            setIsLoadingProofs(false);
+        });
         return () => unsub();
     }, [activeTab, user]);
 
     // Fetch feedbacks (ratings)
     useEffect(() => {
         if (activeTab !== 'feedback' && activeTab !== 'dashboard') return;
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'ratings'), orderBy('createdAt', 'desc'), limit(100));
-        const unsub = onSnapshot(q, (snap) => setFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (error) => console.log('Feedbacks error:', error));
+        setIsLoadingFeedbacks(true);
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'ratings'), orderBy('createdAt', 'desc'), limit(50));
+        const unsub = onSnapshot(q, (snap) => {
+            setFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsLoadingFeedbacks(false);
+        }, (error) => {
+            console.error('Feedbacks sync error:', error);
+            setIsLoadingFeedbacks(false);
+        });
         return () => unsub();
     }, [activeTab, user]);
 
     // Fetch reports (suggestions/bugs from student/faculty)
     useEffect(() => {
         if (activeTab !== 'feedback' && activeTab !== 'dashboard') return;
+        setIsLoadingReports(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'feedback_reports'), orderBy('createdAt', 'desc'), limit(50));
-        const unsub = onSnapshot(q, (snap) => setReports(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (error) => console.log('Reports error:', error));
+        const unsub = onSnapshot(q, (snap) => {
+            setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsLoadingReports(false);
+        }, (error) => {
+            console.error('Reports sync error:', error);
+            setIsLoadingReports(false);
+        });
         return () => unsub();
     }, [activeTab, user]);
 
@@ -218,8 +248,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Fetch notices
     useEffect(() => {
+        setIsLoadingNotices(true);
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(20));
-        const unsub = onSnapshot(q, (snap) => setNotices(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (error) => console.log('Notices error:', error));
+        const unsub = onSnapshot(q, (snap) => {
+            setNotices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setIsLoadingNotices(false);
+        }, (error) => {
+            console.error('Notices sync error:', error);
+            setIsLoadingNotices(false);
+        });
         return () => unsub();
     }, [user]);
 
@@ -1124,10 +1161,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
                             {[
-                                { label: 'Total Users', value: stats.totalUsers, icon: Users, hero: true },
-                                { label: 'Students', value: stats.students, icon: User, iconColor: 'text-blue-500 dark:text-blue-400', badgeBg: 'bg-blue-50 dark:bg-blue-900/30' },
-                                { label: 'Pending Approval', value: stats.pendingUsers, icon: Clock4, iconColor: 'text-amber-500', badgeBg: 'bg-amber-50 dark:bg-amber-900/30' },
-                                { label: 'Avg Rating', value: stats.avgRating, icon: Star, iconColor: 'text-purple-500 dark:text-purple-400', badgeBg: 'bg-purple-50 dark:bg-purple-900/30' }
+                                { label: 'Total Users', value: stats.totalUsers, icon: Users, hero: true, loading: isLoadingUsers },
+                                { label: 'Students', value: stats.students, icon: User, iconColor: 'text-blue-500 dark:text-blue-400', badgeBg: 'bg-blue-50 dark:bg-blue-900/30', loading: isLoadingUsers },
+                                { label: 'Pending Approval', value: stats.pendingUsers, icon: Clock4, iconColor: 'text-amber-500', badgeBg: 'bg-amber-50 dark:bg-amber-900/30', loading: isLoadingUsers },
+                                { label: 'Avg Rating', value: stats.avgRating, icon: Star, iconColor: 'text-purple-500 dark:text-purple-400', badgeBg: 'bg-purple-50 dark:bg-purple-900/30', loading: isLoadingFeedbacks }
                             ].map((stat, i) => (
                                 stat.hero ? (
                                     /* Hero card — accent colored */
@@ -1140,7 +1177,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <div className="bg-white/20 w-10 h-10 rounded-xl flex items-center justify-center mb-4">
                                             <stat.icon size={22} className="text-white" />
                                         </div>
-                                        <p className="text-4xl font-heading font-black tracking-tight">{stat.value}</p>
+                                        <p className="text-4xl font-heading font-black tracking-tight">
+                                            {stat.loading ? <div className="h-10 w-16 bg-white/20 animate-pulse rounded-lg" /> : stat.value}
+                                        </p>
                                         <p className="text-xs font-bold uppercase tracking-widest mt-1 text-white/70">{stat.label}</p>
                                     </div>
                                 ) : (
@@ -1156,7 +1195,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${stat.badgeBg}`}>
                                             <stat.icon size={20} className={stat.iconColor} />
                                         </div>
-                                        <p className="text-4xl font-heading font-black tracking-tight text-[#0D0D0D] dark:text-[#F0F0FF]">{stat.value}</p>
+                                        <p className="text-4xl font-heading font-black tracking-tight text-[#0D0D0D] dark:text-[#F0F0FF]">
+                                            {stat.loading ? <div className="h-10 w-16 bg-zinc-200 dark:bg-white/10 animate-pulse rounded-lg" /> : stat.value}
+                                        </p>
                                         <p className="text-xs font-bold uppercase tracking-widest mt-1 text-[#6B6B6B] dark:text-[#8B8BAD]">{stat.label}</p>
                                     </div>
                                 )
@@ -1171,7 +1212,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     <button onClick={() => setActiveTab('feedback')} className="text-xs font-bold text-[#2E7D32] dark:text-[#7C3AED] hover:underline">View All</button>
                                 </div>
                                 <div className="space-y-2 overflow-y-auto flex-grow scrollbar-hide pr-1">
-                                    {feedbacks.slice(0, 5).map(f => (
+                                    {isLoadingFeedbacks ? (
+                                        [1, 2, 3].map(i => <div key={i} className="h-12 w-full bg-[#F7F7F7] dark:bg-[#1E1E35] animate-pulse rounded-xl" />)
+                                    ) : feedbacks.slice(0, 5).map(f => (
                                         <div key={f.id} className="flex items-center gap-3 p-3 bg-[#F7F7F7] dark:bg-[#1E1E35] rounded-xl transition-colors hover:bg-[#EEEEEE] dark:hover:bg-[#1E1E2E]">
                                             <div className="flex">
                                                 {[1, 2, 3, 4, 5].map(star => (
@@ -1197,7 +1240,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <button onClick={() => setActiveTab('proofs')} className="text-xs font-bold text-[#2E7D32] dark:text-[#7C3AED] hover:underline">View All</button>
                                     </div>
                                     <div className="space-y-3 overflow-y-auto flex-grow scrollbar-hide pr-1">
-                                        {proofs.filter(p => p.status === 'Pending').slice(0, 5).map(p => (
+                                        {isLoadingProofs ? (
+                                            [1, 2, 3].map(i => <div key={i} className="h-20 w-full bg-[#FFF8E1] dark:bg-[#2A2210] animate-pulse rounded-xl border border-[#F57F17]/20" />)
+                                        ) : proofs.filter(p => p.status === 'Pending').slice(0, 5).map(p => (
                                             <div key={p.id} className="p-3 rounded-xl border transition-colors bg-[#FFF8E1] border-[#F57F17]/20 dark:bg-[#2A2210] dark:border-[#FBBF24]/20 hover:border-[#F57F17]/40 dark:hover:border-[#FBBF24]/40">
                                                 <div className="flex justify-between items-start">
                                                     <div>
