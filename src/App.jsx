@@ -176,6 +176,27 @@ const App = () => {
     }
   }, [user, userData]);
 
+  // Track user activity for real-time online status
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const updateActivity = async () => {
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
+          lastActive: new Date().toISOString(),
+          isOnline: true // Optional explicit flag
+        });
+      } catch (e) {
+        console.error("Failed to update activity:", e);
+      }
+    };
+
+    updateActivity();
+    const interval = setInterval(updateActivity, 2 * 60 * 1000); // Every 2 minutes
+
+    return () => clearInterval(interval);
+  }, [user?.uid]);
+
   const login = async (intendedRole) => {
     setAuthError(null);
     setActionLoading(true);

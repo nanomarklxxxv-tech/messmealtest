@@ -857,17 +857,32 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     };
 
     // Derived stats
-    const stats = React.useMemo(() => ({
-        totalUsers: usersList.length,
-        students: usersList.filter(u => u.role === 'student').length,
-        faculty: usersList.filter(u => u.role === 'faculty').length,
-        pendingUsers: usersList.filter(u => u.approved === false).length,
-        pendingProofs: proofs.filter(p => !p.status || p.status.toLowerCase() === 'pending').length,
-        pendingReports: reports.filter(r => !r.status || r.status.toLowerCase() === 'pending').length,
-        avgRating: feedbacks.length > 0
-            ? (feedbacks.reduce((acc, f) => acc + (f.rating || 0), 0) / feedbacks.length).toFixed(1)
-            : 'N/A'
-    }), [usersList, proofs, feedbacks, reports]);
+    const stats = React.useMemo(() => {
+        const totalUsers = usersList.length;
+        const students = usersList.filter(u => u.role === 'student').length;
+        const faculty = usersList.filter(u => u.role === 'faculty').length;
+        const pendingUsers = usersList.filter(u => !u.approved).length;
+
+        // Online = active in last 5 minutes
+        const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const onlineUsers = usersList.filter(u => {
+            if (!u.lastActive) return false;
+            return new Date(u.lastActive) > fiveMinsAgo;
+        }).length;
+
+        return {
+            totalUsers,
+            onlineUsers,
+            students,
+            faculty,
+            pendingUsers,
+            pendingProofs: proofs.filter(p => !p.status || p.status.toLowerCase() === 'pending').length,
+            pendingReports: reports.filter(r => !r.status || r.status.toLowerCase() === 'pending').length,
+            avgRating: feedbacks.length > 0
+                ? (feedbacks.reduce((acc, f) => acc + (f.rating || 0), 0) / feedbacks.length).toFixed(1)
+                : 'N/A'
+        };
+    }, [usersList, proofs, feedbacks, reports]);
 
     const filteredProofs = proofs.filter(p => {
         const matchesDate = !proofDateFilter || p.date === proofDateFilter;
@@ -1128,17 +1143,18 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-5">
                             {[
-                                { label: 'Total Users', value: stats.totalUsers, icon: Users, hero: true, loading: isLoadingUsers },
+                                { label: 'Online Now', value: stats.onlineUsers, icon: Globe, hero: true, loading: isLoadingUsers, color: 'bg-emerald-600' },
+                                { label: 'Registered', value: stats.totalUsers, icon: Users, hero: true, loading: isLoadingUsers, color: 'bg-indigo-600' },
                                 { label: 'Students', value: stats.students, icon: User, iconColor: 'text-blue-500 dark:text-blue-400', badgeBg: 'bg-blue-50 dark:bg-blue-900/30', loading: isLoadingUsers },
-                                { label: 'Pending Approval', value: stats.pendingUsers, icon: Clock4, iconColor: 'text-amber-500', badgeBg: 'bg-amber-50 dark:bg-amber-900/30', loading: isLoadingUsers },
+                                { label: 'Pending', value: stats.pendingUsers, icon: Clock4, iconColor: 'text-amber-500', badgeBg: 'bg-amber-50 dark:bg-amber-900/30', loading: isLoadingUsers },
                                 { label: 'Avg Rating', value: stats.avgRating, icon: Star, iconColor: 'text-purple-500 dark:text-purple-400', badgeBg: 'bg-purple-50 dark:bg-purple-900/30', loading: isLoadingFeedbacks }
                             ].map((stat, i) => (
                                 stat.hero ? (
                                     /* Hero card — accent colored */
-                                    <div key={stat.label} className="p-5 rounded-2xl flex flex-col transition-transform hover:-translate-y-1 duration-200
-                                        bg-[#2E7D32] dark:bg-[#7C3AED] text-white shadow-lg relative overflow-hidden">
+                                    <div key={stat.label} className={`p-5 rounded-2xl flex flex-col transition-transform hover:-translate-y-1 duration-200
+                                        ${stat.color || 'bg-[#2E7D32]'} dark:bg-[#7C3AED] text-white shadow-lg relative overflow-hidden`}>
                                         <div className="absolute top-2 right-2 flex items-center gap-1.5">
                                             <span className="flex h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
                                             <span className="text-[7px] font-black uppercase tracking-widest opacity-80">Live</span>
