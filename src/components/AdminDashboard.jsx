@@ -5,7 +5,7 @@ import { db, appId } from '../lib/firebase';
 import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
-import { parseMenuCSV, uploadMenuBatch } from '../lib/menuUtils';
+import { parseMenuXLSX, uploadMenuBatch } from '../lib/menuUtils';
 
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
@@ -426,21 +426,29 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         if (!newAdminEmail.trim()) return;
         setSubmitting(true);
         try {
-            const res = await fetch('/api/admin/add-admin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: newAdminEmail.trim() })
-            });
+            const email = newAdminEmail.trim().toLowerCase();
+            const q = query(collection(db, 'artifacts', appId, 'users'), where('email', '==', email), limit(1));
+            const snap = await getDocs(q);
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Error adding admin');
+            if (snap.empty) {
+                throw new Error("User not found. They must sign in once to register before you can make them an Admin.");
+            }
+
+            const userDoc = snap.docs[0];
+            const userData = userDoc.data();
+
+            if (userData.role === 'admin' || userData.role === 'super_admin') {
+                throw new Error("User is already an Admin or Super Admin.");
+            }
+
+            await updateDoc(doc(db, 'artifacts', appId, 'users', userDoc.id), { role: 'admin', updatedAt: serverTimestamp() });
 
             setSuccessModal({
                 isOpen: true,
                 title: "Admin Added!",
-                message: `User "${newAdminEmail}" has been granted admin privileges.`
+                message: `User "${email}" has been successfully granted admin privileges.`
             });
-            toast.success(data.message);
+            toast.success("Admin access granted.");
             setNewAdminEmail('');
         } catch (err) {
             toast.error(err.message);
@@ -454,27 +462,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         setConfirmModal({
             isOpen: true,
             title: "Transfer Ownership",
-            message: `Are you sure you want to transfer Super Admin privileges to ${newEmail}? You will lose these privileges.`,
+            message: `Are you sure you want to transfer Super Admin privileges to ${newEmail}? You will lose these privileges and become a regular Admin.`,
             isDestructive: true,
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
                 setSubmitting(true);
                 try {
-                    const res = await fetch('/api/admin/transfer-ownership', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ newEmail: newEmail.trim() })
-                    });
+                    const email = newEmail.trim().toLowerCase();
+                    const q = query(collection(db, 'artifacts', appId, 'users'), where('email', '==', email), limit(1));
+                    const snap = await getDocs(q);
 
-                    const data = await res.json();
-                    if (!res.ok) throw new Error(data.error || 'Error transferring ownership');
+                    if (snap.empty) {
+                        throw new Error("User not found. They must sign in once to register before ownership can be transferred.");
+                    }
+
+                    const newOwnerDoc = snap.docs[0];
+
+                    const batch = writeBatch(db);
+                    // Make new owner super_admin
+                    batch.update(doc(db, 'artifacts', appId, 'users', newOwnerDoc.id), { role: 'super_admin', updatedAt: serverTimestamp() });
+                    // Downgrade current super_admin to admin
+                    batch.update(doc(db, 'artifacts', appId, 'users', user.uid), { role: 'admin', updatedAt: serverTimestamp() });
+
+                    await batch.commit();
 
                     setSuccessModal({
                         isOpen: true,
                         title: "Ownership Transferred!",
-                        message: `Super Admin privileges have been successfully transferred to "${newEmail}".`
+                        message: `Super Admin privileges have been successfully transferred to "${email}".`
                     });
-                    toast.success(data.message);
+                    toast.success("Ownership transferred successfully.");
                 } catch (err) {
                     toast.error(err.message);
                 } finally {
@@ -790,7 +807,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
         setUploadingMenu(true);
         try {
-            const processedMenu = await parseMenuCSV(csvFile, csvMonth, csvYear);
+            const processedMenu = await parseMenuXLSX(csvFile, csvMonth, csvYear);
 
             const targetHostels = getTargetHostels(uploadHostel);
             const targetMessTypes = getTargetMessTypes(uploadMessType);

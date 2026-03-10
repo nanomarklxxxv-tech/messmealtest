@@ -90,21 +90,46 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     useEffect(() => {
         const h = (userData?.hostel || "").trim().toUpperCase();
         const m = (userData?.messType || "").trim().toUpperCase();
-        if (!h || !m) return;
+        if (!h || !m || !selectedDate) return;
 
         setIsLoadingMenu(true);
-        // Do not clear menu immediately to avoid layout shift if same menu is fetched
+        // Extract month/year and day from selectedDate (YYYY-MM-DD)
+        const dateObj = new Date(selectedDate);
+        const year = dateObj.getFullYear();
+        const month = dateObj.getMonth();
+        const dayNumber = dateObj.getDate();
+
+        // Match the doc ID format from uploadMenuBatch: e.g., "MENS_VEG_2026_2"
+        const docId = `${h}_${m}_${year}_${month}`;
 
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'menus'),
-            where('date', '==', selectedDate),
-            where('hostel', '==', h),
-            where('messType', '==', m),
+            where('__name__', '==', docId),
             limit(1)
         );
+
         const unsub = onSnapshot(q, (snap) => {
-            if (!snap.empty) setMenu(snap.docs[0].data());
-            else setMenu(null);
+            if (!snap.empty) {
+                const monthData = snap.docs[0].data();
+                if (monthData && Array.isArray(monthData.days)) {
+                    // Find the day entry that includes the selected dayNumber
+                    const dayMenu = monthData.days.find(d => d.dates && d.dates.includes(dayNumber));
+                    if (dayMenu) {
+                        setMenu({
+                            breakfast: dayMenu.breakfast.join(', '),
+                            lunch: dayMenu.lunch.join(', '),
+                            snacks: dayMenu.snacks.join(', '),
+                            dinner: dayMenu.dinner.join(', ')
+                        });
+                    } else {
+                        setMenu(null); // Day not found in Excel
+                    }
+                } else {
+                    setMenu(null);
+                }
+            } else {
+                setMenu(null);
+            }
             setIsLoadingMenu(false);
         }, (err) => {
             console.error("Menu fetch error:", err);
@@ -224,6 +249,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
 
     const [submittingMeal, setSubmittingMeal] = useState(null);
     const [submittingAll, setSubmittingAll] = useState(false);
+    const [ratingComments, setRatingComments] = useState({});
 
     const submitMealRating = async (meal) => {
         if (isPending) return toast.error("Please wait for account approval to submit ratings.");
@@ -245,10 +271,16 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 date: selectedDate,
                 mealType: meal,
                 rating: ratings[meal],
+                comment: ratingComments[meal] || '',
                 createdAt: serverTimestamp()
             });
 
             setRatings(prev => {
+                const updated = { ...prev };
+                delete updated[meal];
+                return updated;
+            });
+            setRatingComments(prev => {
                 const updated = { ...prev };
                 delete updated[meal];
                 return updated;
@@ -293,12 +325,18 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                     date: selectedDate,
                     mealType: meal,
                     rating: ratings[meal],
+                    comment: ratingComments[meal] || '',
                     createdAt: serverTimestamp()
                 });
                 successCount++;
             }
             // Clear submitted ratings from local state
             setRatings(prev => {
+                const updated = { ...prev };
+                mealsToSubmit.forEach(meal => delete updated[meal]);
+                return updated;
+            });
+            setRatingComments(prev => {
                 const updated = { ...prev };
                 mealsToSubmit.forEach(meal => delete updated[meal]);
                 return updated;
@@ -670,14 +708,23 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                                     </div>
 
                                                     {currentRating > 0 && (
-                                                        <Button
-                                                            onClick={() => submitMealRating(meal)}
-                                                            className="w-full py-3 text-xs font-black uppercase tracking-widest"
-                                                            disabled={submittingAll}
-                                                            loading={submittingAll}
-                                                        >
-                                                            Submit {meal} Rating
-                                                        </Button>
+                                                        <>
+                                                            <textarea
+                                                                value={ratingComments[meal] || ''}
+                                                                onChange={(e) => setRatingComments(prev => ({ ...prev, [meal]: e.target.value }))}
+                                                                placeholder="Add a comment... (optional)"
+                                                                className="w-full mt-3 p-3 text-sm bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl resize-none outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
+                                                                rows={2}
+                                                            />
+                                                            <Button
+                                                                onClick={() => submitMealRating(meal)}
+                                                                className="w-full mt-3 py-3 text-xs font-black uppercase tracking-widest"
+                                                                disabled={submittingAll}
+                                                                loading={submittingAll}
+                                                            >
+                                                                Submit {meal} Rating
+                                                            </Button>
+                                                        </>
                                                     )}
                                                 </div>
                                             )}

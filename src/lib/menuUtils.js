@@ -1,112 +1,119 @@
 import Papa from 'papaparse';
+import * as xlsx from 'xlsx';
 import { doc, setDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db, appId } from './firebase';
 
 /**
- * Parses a CSV file and builds a menu map: { dateStr: { breakfast, lunch, snacks, dinner } }
- * Specific rules:
- * 1. Skip Headers/Footers: Column headers are on row 2 or 3. Stop if "MESS SERVICE INSTRUCTIONS" is found.
- * 2. Grouped Dates: Column 0 has strings like "Sun 1,15,29". Extract integers using Regex.
- * 3. Fill-Down: Dates column can be empty for subsequent rows of the same day.
- * 4. Data cleaning: Ignore empty cells/commas.
+/**
+ * Clean cell text and identify (NV) tags.
  */
-export const parseMenuCSV = (file, selectedMonth, selectedYear) => {
+const cleanItemXLSX = (item) => {
+    if (!item) return null;
+    let cleaned = String(item).trim().replace(/^,+|,+$/g, '').trim();
+    if (!cleaned) return null;
+    return cleaned;
+};
+
+/**
+ * Parses XLSX files according to the specific structure:
+ * - Row 1: Title (skip)
+ * - Row 2: Headers (skip)
+ * - Row 3+: Days grouped by non-empty Col A
+ */
+export const parseMenuXLSX = (file, selectedMonth, selectedYear) => {
     return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-            skipEmptyLines: true,
-            complete: (results) => {
-                try {
-                    const data = results.data;
-                    const menuMap = {}; // dateStr -> { breakfast: [], lunch: [], snacks: [], dinner: [] }
-                    let currentActiveDays = [];
-                    let headerFound = false;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = xlsx.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
 
-                    for (let i = 0; i < data.length; i++) {
-                        const row = data[i];
-                        if (!row || row.length === 0) continue;
+                // Convert to array of arrays
+                const rows = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: null });
 
-                        const firstCell = String(row[0] || '').trim();
+                const monthName = new Date(selectedYear, selectedMonth, 1).toLocaleString('default', { month: 'long' });
+                const finalMenu = {
+                    month: `${monthName} ${selectedYear}`,
+                    year: selectedYear,
+                    monthNum: selectedMonth,
+                    days: []
+                };
 
-                        // 1. Footer check
-                        if (firstCell.toUpperCase().includes("MESS SERVICE INSTRUCTIONS")) break;
+                let currentDayObj = null;
 
-                        // 2. Header skip (heuristic: headers usually contain "Date" or "Breakfast")
-                        if (!headerFound) {
-                            if (firstCell.toLowerCase().includes("date") ||
-                                String(row[1] || '').toLowerCase().includes("breakfast")) {
-                                headerFound = true;
-                            }
-                            continue;
-                        }
+                // Start from row 2 (index 2) skipping Title (0) and Headers (1)
+                for (let i = 2; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
 
-                        // 3. Extract dates or "Fill-Down"
-                        if (firstCell) {
-                            // Grouped Dates Extraction: "Sun 1,15,29" -> [1, 15, 29]
-                            const dayNumbers = firstCell.match(/\d+/g);
-                            if (dayNumbers) {
-                                currentActiveDays = dayNumbers.map(d => parseInt(d));
-                            }
-                        }
+                    const colA = row[0] ? String(row[0]).trim() : '';
 
-                        if (currentActiveDays.length === 0) continue;
-
-                        // 4. Extract and clean food items
-                        const cleanItem = (item) => {
-                            if (!item) return null;
-                            const cleaned = String(item).trim().replace(/^,+|,+$/g, '').trim();
-                            return cleaned || null;
-                        };
-
-                        const items = {
-                            breakfast: cleanItem(row[1]),
-                            lunch: cleanItem(row[2]),
-                            snacks: cleanItem(row[3]),
-                            dinner: cleanItem(row[4])
-                        };
-
-                        // 5. Append items to each active date
-                        currentActiveDays.forEach(day => {
-                            // Validate day for the month/year
-                            const date = new Date(selectedYear, selectedMonth, day);
-                            if (date.getMonth() !== selectedMonth) return;
-
-                            const dateStr = date.toISOString().split('T')[0];
-                            if (!menuMap[dateStr]) {
-                                menuMap[dateStr] = { breakfast: [], lunch: [], snacks: [], dinner: [] };
-                            }
-
-                            // If item exists, add it to the corresponding meal array
-                            Object.keys(items).forEach(meal => {
-                                if (items[meal]) {
-                                    menuMap[dateStr][meal].push(items[meal]);
-                                }
-                            });
-                        });
+                    // Stop if footer found
+                    if (colA.toUpperCase().includes("MESS SERVICE INSTRUCTIONS") ||
+                        colA.toUpperCase().includes("NOTE:")) {
+                        break;
                     }
 
-                    // Convert arrays to joined strings for Firestore consistency
-                    const finalMenu = {};
-                    Object.keys(menuMap).forEach(dateStr => {
-                        finalMenu[dateStr] = {
-                            breakfast: menuMap[dateStr].breakfast.join(', '),
-                            lunch: menuMap[dateStr].lunch.join(', '),
-                            snacks: menuMap[dateStr].snacks.join(', '),
-                            dinner: menuMap[dateStr].dinner.join(', ')
-                        };
-                    });
+                    // If Col A has text, start a new day group
+                    if (colA !== '') {
+                        if (currentDayObj) {
+                            finalMenu.days.push(currentDayObj);
+                        }
 
-                    resolve(finalMenu);
-                } catch (error) {
-                    reject(error);
+                        // Parse "Sun   1,15,29" -> dayAbbr: "Sun", dates: [1,15,29]
+                        const dateLabel = colA;
+                        const dayAbbrMatch = dateLabel.match(/[a-zA-Z]+/);
+                        const dayAbbr = dayAbbrMatch ? dayAbbrMatch[0] : '';
+
+                        const dayNumbers = dateLabel.match(/\d+/g);
+                        const datesArray = dayNumbers ? dayNumbers.map(d => parseInt(d)) : [];
+
+                        currentDayObj = {
+                            dateLabel,
+                            dayAbbr,
+                            dates: datesArray,
+                            breakfast: [],
+                            lunch: [],
+                            snacks: [],
+                            dinner: []
+                        };
+                    }
+
+                    if (!currentDayObj) continue;
+
+                    // Collect meals
+                    const b = cleanItemXLSX(row[1]);
+                    const l = cleanItemXLSX(row[2]);
+                    const s = cleanItemXLSX(row[3]);
+                    const d = cleanItemXLSX(row[4]);
+
+                    if (b) currentDayObj.breakfast.push(b);
+                    if (l) currentDayObj.lunch.push(l);
+                    if (s) currentDayObj.snacks.push(s);
+                    if (d) currentDayObj.dinner.push(d);
                 }
-            },
-            error: (error) => reject(error)
-        });
+
+                // Push the last day group object
+                if (currentDayObj) {
+                    finalMenu.days.push(currentDayObj);
+                }
+
+                resolve(finalMenu);
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
     });
 };
 
 /**
- * Uploads themed menu to Firestore for multiple hostels.
+ * Uploads the monthly parsed menu object to Firestore.
+ * Document ID format: HOSTEL_MESSTYPE_YEAR_MONTH
+ * Example: MENS_VEG_2026_2
  */
 export const uploadMenuBatch = async (processedMenu, targets, messTypes, userId) => {
     const batch = writeBatch(db);
@@ -114,22 +121,19 @@ export const uploadMenuBatch = async (processedMenu, targets, messTypes, userId)
 
     const types = Array.isArray(messTypes) ? messTypes : [messTypes];
 
-    Object.entries(processedMenu).forEach(([dateStr, meals]) => {
-        targets.forEach(hostel => {
-            types.forEach(messType => {
-                const docId = `${hostel}_${messType}_${dateStr}`;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
+    targets.forEach(hostel => {
+        types.forEach(messType => {
+            const docId = `${hostel}_${messType}_${processedMenu.year}_${processedMenu.monthNum}`;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
 
-                batch.set(docRef, {
-                    ...meals,
-                    date: dateStr,
-                    hostel,
-                    messType,
-                    updatedAt: serverTimestamp(),
-                    updatedBy: userId
-                }, { merge: true });
-                count++;
-            });
+            batch.set(docRef, {
+                ...processedMenu,
+                hostel,
+                messType,
+                updatedAt: serverTimestamp(),
+                updatedBy: userId
+            }, { merge: false }); // Rewrite the entire month document
+            count++;
         });
     });
 
