@@ -22,7 +22,14 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
             return;
         }
         setLoading(true);
-        await onComplete({ name: name.trim(), hostel, messType, avatar, studyingYear });
+        const payload = {
+            name: name.trim(),
+            hostel: String(hostel).trim().toUpperCase(),
+            messType: String(messType).trim().toUpperCase(),
+            avatar,
+            studyingYear
+        };
+        await onComplete(payload);
         setLoading(false);
     };
 

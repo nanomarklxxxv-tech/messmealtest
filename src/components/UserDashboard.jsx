@@ -86,7 +86,9 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
 
     // Fetch menu
     useEffect(() => {
-        if (!userData?.hostel) return;
+        const h = (userData?.hostel || "").trim().toUpperCase();
+        const m = (userData?.messType || "").trim().toUpperCase();
+        if (!h || !m) return;
 
         setIsLoadingMenu(true);
         setMenu(null);
@@ -94,8 +96,8 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'menus'),
             where('date', '==', selectedDate),
-            where('hostel', '==', userData.hostel),
-            where('messType', '==', userData.messType),
+            where('hostel', '==', h),
+            where('messType', '==', m),
             limit(1)
         );
         const unsub = onSnapshot(q, (snap) => {
@@ -136,11 +138,13 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(20));
         const unsub = onSnapshot(q, (snap) => {
             const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const h = (userData?.hostel || "").trim().toUpperCase();
+            const m = (userData?.messType || "").trim().toUpperCase();
             const relevant = allNotices.filter(n => {
-                const targetHostels = n.targetHostels || [n.hostel] || ['ALL'];
-                const targetMessTypes = n.targetMessTypes || [n.messType] || ['ALL'];
-                return (targetHostels.includes('ALL') || targetHostels.includes(userData.hostel)) &&
-                    (targetMessTypes.includes('ALL') || targetMessTypes.includes(userData.messType));
+                const targetHostels = Array.isArray(n.targetHostels) ? n.targetHostels.map(x => String(x).trim().toUpperCase()) : (n.hostel ? [String(n.hostel).trim().toUpperCase()] : ['ALL']);
+                const targetMessTypes = Array.isArray(n.targetMessTypes) ? n.targetMessTypes.map(x => String(x).trim().toUpperCase()) : (n.messType ? [String(n.messType).trim().toUpperCase()] : ['ALL']);
+                return (targetHostels.includes('ALL') || targetHostels.includes(h)) &&
+                    (targetMessTypes.includes('ALL') || targetMessTypes.includes(m));
             });
             setNotices(relevant);
             // Fire notice notifications for relevant new notices

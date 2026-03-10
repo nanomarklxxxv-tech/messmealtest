@@ -620,9 +620,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 finalHostels = ['ALL'];
             } else {
                 noticeHostels.forEach(h => {
-                    finalHostels = [...finalHostels, ...getTargetHostels(h)];
+                    finalHostels = [...finalHostels, ...getTargetHostels(String(h).trim().toUpperCase())];
                 });
-                finalHostels = [...new Set(finalHostels)];
+                finalHostels = [...new Set(finalHostels.map(x => String(x).trim().toUpperCase()))];
             }
 
             // Flatten target mess types from selections
@@ -631,9 +631,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 finalMessTypes = ['ALL'];
             } else {
                 noticeMessTypes.forEach(t => {
-                    finalMessTypes = [...finalMessTypes, ...getTargetMessTypes(t)];
+                    finalMessTypes = [...finalMessTypes, ...getTargetMessTypes(String(t).trim().toUpperCase())];
                 });
-                finalMessTypes = [...new Set(finalMessTypes)];
+                finalMessTypes = [...new Set(finalMessTypes.map(x => String(x).trim().toUpperCase()))];
             }
 
             // Show modal BEFORE any awaits that could trigger re-renders
@@ -695,8 +695,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 message: `Successfully updating ${session} for ${targetHostels.length} hostel(s) on ${menuDate}. Changes will reflect shortly.`
             });
 
-            for (const hostel of targetHostels) {
-                for (const mType of targetMessTypes) {
+            for (const rawHostel of targetHostels) {
+                const hostel = String(rawHostel).trim().toUpperCase();
+                for (const rawMType of targetMessTypes) {
+                    const mType = String(rawMType).trim().toUpperCase();
                     const docId = `${hostel}_${mType}_${menuDate}`;
                     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
                     const data = {
