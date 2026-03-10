@@ -2740,6 +2740,8 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         bg-[#F7F7F7] dark:bg-[#0D0D14]
                         text-[#0D0D0D] dark:text-[#F0F0FF] selection:bg-[#2E7D32]/20 dark:selection:bg-[#7C3AED]/20">
 
+            <OfflineIndicator />
+
             {/* ── MAINTENANCE REMINDER POPUP (NON-BLOCKING) ───────────── */}
             {maintenanceStatus.lock && showMaintenancePopup && (
                 <div className="fixed bottom-5 right-5 z-[90] w-full max-w-sm">
