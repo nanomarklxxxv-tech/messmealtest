@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Button } from './ui/Button';
 import { DEFAULT_HOSTELS, DEFAULT_MESS_TYPES } from '../lib/constants';
 
-export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange', config }) => {
+export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange', config, isReadOnly = false }) => {
     const defaultHostels = config?.hostels || DEFAULT_HOSTELS;
     const defaultMessTypes = config?.messTypes || DEFAULT_MESS_TYPES;
 
@@ -48,14 +48,14 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                             <label className="text-xs font-bold text-mid uppercase tracking-widest">Select Your Avatar</label>
                             <div className="flex gap-8">
                                 <button
-                                    onClick={() => setAvatar('boy')}
-                                    className={`w-20 h-20 rounded-full transition-all duration-300 ${avatar === 'boy' ? 'ring-4 ring-primary ring-offset-2 ring-offset-page scale-110 shadow-glow' : 'opacity-50 hover:opacity-100 grayscale hover:grayscale-0'}`}
+                                    onClick={() => !isReadOnly && setAvatar('boy')}
+                                    className={`w-20 h-20 rounded-full transition-all duration-300 ${isReadOnly ? 'cursor-default' : ''} ${avatar === 'boy' ? 'ring-4 ring-primary ring-offset-2 ring-offset-page scale-110 shadow-glow' : 'opacity-50 hover:opacity-100 grayscale hover:grayscale-0'}`}
                                 >
                                     <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=boy`} alt="Boy Avatar" className="w-full h-full object-cover rounded-full bg-white/10" />
                                 </button>
                                 <button
-                                    onClick={() => setAvatar('girl')}
-                                    className={`w-20 h-20 rounded-full transition-all duration-300 ${avatar === 'girl' ? 'ring-4 ring-primary ring-offset-2 ring-offset-page scale-110 shadow-glow' : 'opacity-50 hover:opacity-100 grayscale hover:grayscale-0'}`}
+                                    onClick={() => !isReadOnly && setAvatar('girl')}
+                                    className={`w-20 h-20 rounded-full transition-all duration-300 ${isReadOnly ? 'cursor-default' : ''} ${avatar === 'girl' ? 'ring-4 ring-primary ring-offset-2 ring-offset-page scale-110 shadow-glow' : 'opacity-50 hover:opacity-100 grayscale hover:grayscale-0'}`}
                                 >
                                     <img src={`https://api.dicebear.com/7.x/adventurer/svg?seed=girl`} alt="Girl Avatar" className="w-full h-full object-cover rounded-full bg-slate-100 dark:bg-white/10" />
                                 </button>
@@ -97,8 +97,8 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                                 {defaultHostels.map(h => (
                                     <button
                                         key={h}
-                                        onClick={() => setHostel(h)}
-                                        className={`p-3 rounded-2xl text-sm font-bold transition-all duration-200 border ${hostel === h ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
+                                        onClick={() => !isReadOnly && setHostel(h)}
+                                        className={`p-3 rounded-2xl text-sm font-bold transition-all duration-200 border ${isReadOnly ? 'cursor-default' : ''} ${hostel === h ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
                                     >
                                         {h}
                                     </button>
@@ -112,8 +112,8 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                                 {defaultMessTypes.map(t => (
                                     <button
                                         key={t}
-                                        onClick={() => setMessType(t)}
-                                        className={`p-4 rounded-2xl text-sm font-bold transition-all duration-200 border ${messType === t ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
+                                        onClick={() => !isReadOnly && setMessType(t)}
+                                        className={`p-4 rounded-2xl text-sm font-bold transition-all duration-200 border ${isReadOnly ? 'cursor-default' : ''} ${messType === t ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
                                     >
                                         {t}
                                     </button>
@@ -127,8 +127,8 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                                 {['1', '2', '3', '4', '5'].map(year => (
                                     <button
                                         key={year}
-                                        onClick={() => setStudyingYear(year)}
-                                        className={`flex-1 p-3 rounded-xl text-sm font-bold transition-all border ${studyingYear === year ? 'bg-primary/20 text-primary border-primary' : 'bg-black/5 dark:bg-white/5 border-transparent'}`}
+                                        onClick={() => !isReadOnly && setStudyingYear(year)}
+                                        className={`flex-1 p-3 rounded-xl text-sm font-bold transition-all border ${isReadOnly ? 'cursor-default' : ''} ${studyingYear === year ? 'bg-primary/20 text-primary border-primary' : 'bg-black/5 dark:bg-white/5 border-transparent'}`}
                                     >
                                         {year}
                                     </button>
@@ -138,13 +138,15 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
 
                         <div className="flex gap-4 pt-4">
                             <Button onClick={() => setStep(1)} variant="secondary" className="flex-1">Back</Button>
-                            <Button
-                                onClick={handleSubmit}
-                                className="flex-1"
-                                loading={loading}
-                            >
-                                Complete Entry
-                            </Button>
+                            {!isReadOnly && (
+                                <Button
+                                    onClick={handleSubmit}
+                                    className="flex-1"
+                                    loading={loading}
+                                >
+                                    Complete Entry
+                                </Button>
+                            )}
                         </div>
                     </div>
                 )}

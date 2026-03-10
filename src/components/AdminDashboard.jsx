@@ -52,6 +52,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [submitting, setSubmitting] = useState(false);
 
     // Data states
+    const [usersList, setUsersList] = useState([]);
+    const [proofs, setProofs] = useState([]);
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [reports, setReports] = useState([]);
     const [notices, setNotices] = useState([]);
     const [isLoadingUsers, setIsLoadingUsers] = useState(true);
     const [isLoadingProofs, setIsLoadingProofs] = useState(true);
@@ -814,58 +818,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         }
     };
 
-    const seedTemporaryMenu = async () => {
-        if (!confirm("This will seed a 7-day menu for ALL 15 hostels and ALL mess types. Proceed?")) return;
-        setUploadingMenu(true);
-        try {
-            const batch = writeBatch(db);
-            const hostels = config?.hostels || DEFAULT_HOSTELS;
-            const messTypes = config?.messTypes || DEFAULT_MESS_TYPES;
-            const today = new Date();
-
-            const sampleMenu = {
-                breakfast: "Idli, Sambar, Coconut Chutney, Tea/Coffee",
-                lunch: "Rice, Dal Tadka, Seasonal Veg Curry, Curd, Papad",
-                snacks: "Onion Samosa, Green Chutney, Tea",
-                dinner: "Chapati, Paneer Butter Masala, Mixed Salad, Sweet"
-            };
-
-            for (let d = 0; d < 7; d++) {
-                const date = new Date(today);
-                date.setDate(today.getDate() + d);
-                const dateString = date.toLocaleDateString('en-CA');
-
-                hostels.forEach(hostel => {
-                    messTypes.forEach(type => {
-                        const docId = `${hostel}_${type}_${dateString}`;
-                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'menus', docId);
-                        batch.set(docRef, {
-                            ...sampleMenu,
-                            date: dateString,
-                            hostel,
-                            messType: type,
-                            updatedAt: serverTimestamp(),
-                            updatedBy: user.uid
-                        });
-                    });
-                });
-            }
-
-            await batch.commit();
-            setSuccessModal({
-                isOpen: true,
-                title: "Menu Seeded!",
-                message: "Successfully seeded a 7-day sample menu for all hostels and mess types."
-            });
-            toast.success("Successfully seeded 7-day sample menu for all hostels!");
-        } catch (error) {
-            console.error("Seeding error:", error);
-            toast.error("Failed to seed menu");
-        } finally {
-            setUploadingMenu(false);
-        }
-    };
-
     const resolveProof = async (id) => {
         try {
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'proofs', id), { status: 'Resolved' });
@@ -1387,19 +1339,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 })}
                             </div>
 
-                            <div className="pt-8 border-t border-zinc-200 dark:border-white/10 mt-8">
-                                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] mb-4 text-center">Development Tools</p>
-                                <Button
-                                    onClick={seedTemporaryMenu}
-                                    disabled={uploadingMenu}
-                                    variant="secondary"
-                                    className="w-full py-4 text-xs bg-zinc-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-white/10 hover:bg-zinc-200 dark:hover:bg-white/10 font-bold shadow-sm"
-                                >
-                                    <Sparkles size={16} className="mr-2 text-[#2E7D32] dark:text-[#7C3AED]" />
-                                    Seed 7-Day Sample Menu (All Hostels & Types)
-                                </Button>
-                                <p className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-2 text-center italic">Useful for initial testing and demonstration</p>
-                            </div>
+
                         </Card >
                     </div >
                 );

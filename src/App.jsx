@@ -29,7 +29,7 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div className="p-10 text-red-500 bg-white min-h-screen">
-          <h1 className="text-3xl font-bold">Admin Demo Crash</h1>
+          <h1 className="text-3xl font-bold">Application Error</h1>
           <pre className="mt-4 p-4 bg-red-50 text-sm overflow-auto text-left">
             {this.state.error?.toString()}{"\n"}
             {this.state.error?.stack}
@@ -344,47 +344,33 @@ const App = () => {
                 onComplete={handleProfileComplete}
                 config={config}
               />
-            ) : requiresAdminApproval ? (
-              <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-                <div className="bg-zinc-900 border border-yellow-500/20 shadow-[0_0_40px_rgba(234,179,8,0.05)] p-8 rounded-3xl max-w-md w-full text-center space-y-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-yellow-500"></div>
-                  <Clock4 size={48} className="mx-auto text-yellow-500" />
-                  <div>
-                    <h2 className="text-2xl font-black text-white tracking-tight mb-2">Account Pending</h2>
-                    <p className="text-sm font-medium text-zinc-400 leading-relaxed">
-                      Your account is currently under review by an administrator. You will gain full access to the MessMeal dashboard once approved.
-                    </p>
-                  </div>
-                  <button
-                    onClick={logout}
-                    className="w-full bg-white/5 hover:bg-white/10 border border-white/5 text-white py-3 rounded-xl font-bold transition-all"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              </div>
-            ) : isStudentDomain && viewMode === 'admin' && userData?.role !== 'admin' && userData?.role !== 'super_admin' ? (
-              <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-                <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-3xl text-center shadow-[0_0_40px_rgba(239,68,68,0.05)] max-w-md w-full">
-                  <Shield size={48} className="mx-auto text-red-500 mb-4" />
-                  <h2 className="text-2xl font-black text-white mb-2">Restricted Access</h2>
-                  <p className="text-zinc-400 font-medium leading-relaxed">Students are not permitted to access the Admin Interface.</p>
-                  <button onClick={() => setViewMode('user')} className="mt-8 w-full bg-white text-black hover:bg-zinc-200 py-3 rounded-xl font-bold transition-all">Return to Dashboard</button>
-                </div>
-              </div>
             ) : viewMode === 'admin' && (isFacultyDomain || userData?.role === 'admin' || userData?.role === 'super_admin') ? (
-              <ErrorBoundary>
-                <AdminDashboard
+              requiresAdminApproval ? (
+                <UserDashboard
                   user={user}
                   userData={userData}
                   onLogout={logout}
-                  onSwitchToUser={() => setViewMode('user')}
+                  onSwitchToAdmin={() => setViewMode('admin')}
+                  canSwitchToAdmin={true} // They are already in admin view mode conceptually
                   config={config}
-                  onUpdateConfig={onUpdateConfig}
                   settings={settings}
                   updateSettings={updateSettings}
+                  isPending={true}
                 />
-              </ErrorBoundary>
+              ) : (
+                <ErrorBoundary>
+                  <AdminDashboard
+                    user={user}
+                    userData={userData}
+                    onLogout={logout}
+                    onSwitchToUser={() => setViewMode('user')}
+                    config={config}
+                    onUpdateConfig={onUpdateConfig}
+                    settings={settings}
+                    updateSettings={updateSettings}
+                  />
+                </ErrorBoundary>
+              )
             ) : (
               <UserDashboard
                 user={user}
@@ -395,6 +381,7 @@ const App = () => {
                 config={config}
                 settings={settings}
                 updateSettings={updateSettings}
+                isPending={userData?.role === 'faculty' && !userData?.approved} // Student are auto-approved
               />
             )}
             <InstallAppModal />
