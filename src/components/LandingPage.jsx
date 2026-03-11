@@ -222,7 +222,8 @@ export const LandingPage = ({ onLogin, loading, error, config }) => {
 
     const roleCards = [
         { id: 'student', Icon: User, label: 'Student', sub: 'View your mess menu' },
-        { id: 'faculty', Icon: Briefcase, label: 'Faculty/Staff', sub: 'Faculty access' }
+        { id: 'faculty', Icon: Briefcase, label: 'Faculty/Staff', sub: 'Faculty access' },
+        { id: 'admin', Icon: Shield, label: 'Admin', sub: 'Manage the platform' }
     ];
 
     // Reset visibility when switching back to role selection

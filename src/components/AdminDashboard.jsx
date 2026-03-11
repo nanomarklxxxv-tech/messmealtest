@@ -1375,9 +1375,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <div className="bg-white/20 w-10 h-10 rounded-xl flex items-center justify-center mb-4">
                                             <stat.icon size={22} className="text-white" />
                                         </div>
-                                        <p className="text-4xl font-heading font-black tracking-tight">
+                                        <div className="text-4xl font-heading font-black tracking-tight">
                                             {stat.loading ? <div className="h-10 w-16 bg-white/20 animate-pulse rounded-lg" /> : stat.value}
-                                        </p>
+                                        </div>
                                         <p className="text-xs font-bold uppercase tracking-widest mt-1 text-white/70">{stat.label}</p>
                                     </div>
                                 ) : (
@@ -1393,9 +1393,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${stat.badgeBg}`}>
                                             <stat.icon size={20} className={stat.iconColor} />
                                         </div>
-                                        <p className="text-4xl font-heading font-black tracking-tight text-[#0D0D0D] dark:text-[#F0F0FF]">
+                                        <div className="text-4xl font-heading font-black tracking-tight text-[#0D0D0D] dark:text-[#F0F0FF]">
                                             {stat.loading ? <div className="h-10 w-16 bg-zinc-200 dark:bg-white/10 animate-pulse rounded-lg" /> : stat.value}
-                                        </p>
+                                        </div>
                                         <p className="text-xs font-bold uppercase tracking-widest mt-1 text-[#6B6B6B] dark:text-[#8B8BAD]">{stat.label}</p>
                                     </div>
                                 )

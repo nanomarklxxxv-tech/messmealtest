@@ -182,10 +182,10 @@ const App = () => {
 
     const updateActivity = async () => {
       try {
-        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
+        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid), {
           lastActive: new Date().toISOString(),
           isOnline: true // Optional explicit flag
-        });
+        }, { merge: true });
       } catch (e) {
         console.error("Failed to update activity:", e);
       }

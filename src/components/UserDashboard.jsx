@@ -19,6 +19,7 @@ import { ProfileSetupScreen } from './ProfileSetup';
 import { SuccessModal } from './ui/SuccessModal';
 import { callGemini, callCalorieNinjas, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
 import { DEFAULT_MEAL_TIMINGS, MEAL_ORDER, DEFAULT_RATING_WINDOW, DEFAULT_TAGLINE, MEAL_ACCENTS } from '../lib/constants';
+import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
