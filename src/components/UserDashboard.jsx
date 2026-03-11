@@ -14,7 +14,6 @@ import { OfflineIndicator } from './ui/OfflineIndicator';
 import { BouncingLogoScreen } from './ui/LoadingScreen';
 import { DateStrip } from './DateStrip';
 import { MenuGrid } from './MenuGrid';
-import { WeeklyMenuGrid } from './WeeklyMenuGrid';
 import { ProfileSetupScreen } from './ProfileSetup';
 import { SuccessModal } from './ui/SuccessModal';
 import { callGemini, callCalorieNinjas, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
@@ -23,7 +22,6 @@ import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
-    const [viewType, setViewType] = useState('day'); // 'day' or 'week'
     const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menu, setMenu] = useState(null);
     const [isLoadingMenu, setIsLoadingMenu] = useState(true);
@@ -121,9 +119,13 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 if (dayMenu) {
                     setMenu({
                         breakfast: Array.isArray(dayMenu.breakfast) ? dayMenu.breakfast.join('\n') : dayMenu.breakfast || '',
+                        breakfast_notes: dayMenu.breakfast_notes || '',
                         lunch: Array.isArray(dayMenu.lunch) ? dayMenu.lunch.join('\n') : dayMenu.lunch || '',
+                        lunch_notes: dayMenu.lunch_notes || '',
                         snacks: Array.isArray(dayMenu.snacks) ? dayMenu.snacks.join('\n') : dayMenu.snacks || '',
+                        snacks_notes: dayMenu.snacks_notes || '',
                         dinner: Array.isArray(dayMenu.dinner) ? dayMenu.dinner.join('\n') : dayMenu.dinner || '',
+                        dinner_notes: dayMenu.dinner_notes || '',
                         reason: ''
                     });
                 } else {
@@ -591,59 +593,33 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                                     <div key={i} className="bg-white dark:bg-[#1A1A1A] border-l-4 border-zinc-200 p-4 rounded-xl shadow-sm h-24" />
                                 ))}
                             </div>
-                        ) : notices.length > 0 ? notices.map(notice => (
-                            <div key={notice.id} className="bg-warning/5 border-l-4 border-warning p-4 rounded-card dark:rounded-card-xl relative overflow-hidden shadow-card dark:shadow-card-dark">
-                                <div className="flex items-start gap-3">
-                                    <div className="bg-warning/20 p-2.5 rounded-xl flex-shrink-0">
-                                        <Megaphone className="text-warning" size={20} />
-                                    </div>
-                                    <div>
-                                        <h4 className="font-heading font-black text-[#0D0D0D] dark:text-white text-base tracking-tight mb-1">{notice.title}</h4>
-                                        <p className="text-sm text-[#6B6B6B] dark:text-[#A0A0A0] leading-relaxed max-w-2xl">{notice.message}</p>
+                        ) : (
+                            notices.length > 0 && notices.map(notice => (
+                                <div key={notice.id} className="bg-warning/5 border-l-4 border-warning p-4 rounded-card dark:rounded-card-xl relative overflow-hidden shadow-card dark:shadow-card-dark">
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-warning/20 p-2.5 rounded-xl flex-shrink-0">
+                                            <Megaphone className="text-warning" size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-heading font-black text-[#0D0D0D] dark:text-white text-base tracking-tight mb-1">{notice.title}</h4>
+                                            <p className="text-sm text-[#6B6B6B] dark:text-[#A0A0A0] leading-relaxed max-w-2xl">{notice.message}</p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )) : null}
-                        <div className="flex justify-end mb-4">
-                            <div className="bg-[#F0F0F0] dark:bg-[#1A1A1A] border border-[#E4E4E4] dark:border-[#2A2A2A] p-1 rounded-pill inline-flex">
-                                <button
-                                    onClick={() => setViewType('day')}
-                                    className={`px-5 py-2 rounded-pill text-sm font-bold transition-all duration-200 ${viewType === 'day'
-                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-sm'
-                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
-                                        }`}
-                                >
-                                    Day View
-                                </button>
-                                <button
-                                    onClick={() => setViewType('week')}
-                                    className={`px-5 py-2 rounded-pill text-sm font-bold transition-all duration-200 ${viewType === 'week'
-                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-sm'
-                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
-                                        }`}
-                                >
-                                    Week View
-                                </button>
-                            </div>
-                        </div>
-
-                        {viewType === 'day' ? (
-                            <>
-                                <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
-                                <MenuGrid
-                                    menu={menu}
-                                    isLoading={isLoadingMenu}
-                                    activeTimings={activeTimings}
-                                    selectedDateStr={selectedDate}
-                                    nutritionTips={nutritionTips}
-                                    onAnalyze={handleNutritionAnalysis}
-                                    aiLoading={aiLoading}
-                                    theme={theme}
-                                />
-                            </>
-                        ) : (
-                            <WeeklyMenuGrid userData={userData} theme={theme} />
+                            ))
                         )}
+
+                        <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                        <MenuGrid
+                            menu={menu}
+                            isLoading={isLoadingMenu}
+                            activeTimings={activeTimings}
+                            selectedDateStr={selectedDate}
+                            nutritionTips={nutritionTips}
+                            onAnalyze={handleNutritionAnalysis}
+                            aiLoading={aiLoading}
+                            theme={theme}
+                        />
                     </div>
                 )}
 

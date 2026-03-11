@@ -104,6 +104,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Menu state
     const [menuInputs, setMenuInputs] = useState({ breakfast: '', lunch: '', snacks: '', dinner: '' });
+    const [menuNotes, setMenuNotes] = useState({ breakfast: '', lunch: '', snacks: '', dinner: '' });
     const [menuDate, setMenuDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menuHostel, setMenuHostel] = useState(DEFAULT_HOSTELS[0]);
     const [menuType, setMenuType] = useState(DEFAULT_MESS_TYPES[0]);
@@ -317,11 +318,19 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         snacks: Array.isArray(dayMenu.snacks) ? dayMenu.snacks.join('\n') : dayMenu.snacks || '',
                         dinner: Array.isArray(dayMenu.dinner) ? dayMenu.dinner.join('\n') : dayMenu.dinner || ''
                     });
+                    setMenuNotes({
+                        breakfast: dayMenu.breakfast_notes || '',
+                        lunch: dayMenu.lunch_notes || '',
+                        snacks: dayMenu.snacks_notes || '',
+                        dinner: dayMenu.dinner_notes || ''
+                    });
                 } else {
                     setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
+                    setMenuNotes({ breakfast: '', lunch: '', snacks: '', dinner: '' });
                 }
             } else {
                 setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
+                setMenuNotes({ breakfast: '', lunch: '', snacks: '', dinner: '' });
             }
         });
         return () => unsub();
@@ -837,6 +846,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
             const mealKey = session.toLowerCase();
             const itemsText = menuInputs[mealKey];
+            const notesText = menuNotes[mealKey] || '';
             if (itemsText === undefined) return;
             const newItems = itemsText.split('\n').map(i => i.trim()).filter(i => i);
 
@@ -884,11 +894,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 dates: [dayNum]
                             };
                             newDayGroup[mealKey] = newItems;
+                            newDayGroup[mealKey + '_notes'] = notesText;
 
                             days[dayIdx] = updatedOldGroup;
                             days.push(newDayGroup);
                         } else {
                             days[dayIdx][mealKey] = newItems;
+                            days[dayIdx][mealKey + '_notes'] = notesText;
                         }
                     } else {
                         const dayAbbr = dObj.toLocaleString('en-US', { weekday: 'short' });
@@ -897,9 +909,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             dayAbbr: dayAbbr,
                             dates: [dayNum],
                             breakfast: mealKey === 'breakfast' ? newItems : [],
+                            breakfast_notes: mealKey === 'breakfast' ? notesText : '',
                             lunch: mealKey === 'lunch' ? newItems : [],
+                            lunch_notes: mealKey === 'lunch' ? notesText : '',
                             snacks: mealKey === 'snacks' ? newItems : [],
-                            dinner: mealKey === 'dinner' ? newItems : []
+                            snacks_notes: mealKey === 'snacks' ? notesText : '',
+                            dinner: mealKey === 'dinner' ? newItems : [],
+                            dinner_notes: mealKey === 'dinner' ? notesText : ''
                         });
                     }
 
@@ -1611,12 +1627,26 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                     Save {meal}
                                                 </Button>
                                             </div>
-                                            <textarea
-                                                value={menuInputs[meal.toLowerCase()]}
-                                                onChange={(e) => setMenuInputs({ ...menuInputs, [meal.toLowerCase()]: e.target.value })}
-                                                placeholder={`Enter ${meal} menu items...`}
-                                                className="w-full p-4 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-28 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
-                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Menu Items</label>
+                                                    <textarea
+                                                        value={menuInputs[meal.toLowerCase()]}
+                                                        onChange={(e) => setMenuInputs({ ...menuInputs, [meal.toLowerCase()]: e.target.value })}
+                                                        placeholder={`Enter ${meal} menu items...`}
+                                                        className="w-full p-4 bg-white/50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-32 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Food Limits / Instructions</label>
+                                                    <textarea
+                                                        value={menuNotes[meal.toLowerCase()]}
+                                                        onChange={(e) => setMenuNotes({ ...menuNotes, [meal.toLowerCase()]: e.target.value })}
+                                                        placeholder="e.g. Chicken 150g, Curd should be thick..."
+                                                        className="w-full p-4 bg-white/50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-32 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     )
                                 })}
