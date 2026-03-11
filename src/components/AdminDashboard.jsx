@@ -2741,24 +2741,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         Save Permanent Timings
                                     </Button>
 
-                                    {/* Global Food Limits - Unified */}
-                                    <div className="pt-10 border-t border-zinc-200 dark:border-white/10 mt-10">
-                                        <h4 className="font-heading font-bold text-[#0D0D0D] dark:text-white text-lg flex items-center gap-2 mb-6">
-                                            <Utensils size={20} className="text-[#2E7D32] dark:text-[#A78BFA]" /> Mess Service Instructions
-                                        </h4>
-                                        <textarea
-                                            value={editFoodLimits}
-                                            onChange={(e) => setEditFoodLimits(e.target.value)}
-                                            placeholder="Enter all service instructions and food limits here..."
-                                            className="w-full p-5 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-2xl text-sm outline-none focus:border-[#2E7D32] h-[300px] resize-none transition-all leading-relaxed"
-                                        />
-                                        <Button 
-                                            onClick={() => onUpdateConfig({ foodLimits: editFoodLimits })} 
-                                            className="mt-6 bg-[#2E7D32] dark:bg-[#7C3AED] text-white px-10 shadow-lg hover:scale-105 active:scale-95 transition-all"
-                                        >
-                                            Save Instructions
-                                        </Button>
-                                    </div>
 
                                     {/* Temporary Overrides */}
                                     <div className="pt-10 border-t border-zinc-200 dark:border-white/10">
