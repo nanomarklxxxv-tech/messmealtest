@@ -121,18 +121,6 @@ export const MenuGrid = ({ menu, isLoading, activeTimings, selectedDateStr, nutr
                                 <p className="text-[#0D0D0D] dark:text-[#F0F0F0] text-[16px] font-black leading-[1.6] whitespace-pre-wrap tracking-tight">
                                     {String(menuItem)}
                                 </p>
-
-                                {menu[meal.toLowerCase() + '_notes'] && (
-                                    <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/20">
-                                        <div className="flex items-center gap-2 mb-1.5 grayscale-0">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                            <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Food Limits / Instructions</span>
-                                        </div>
-                                        <p className="text-xs font-bold text-amber-700 dark:text-amber-300/80 leading-relaxed italic">
-                                            {menu[meal.toLowerCase() + '_notes']}
-                                        </p>
-                                    </div>
-                                )}
                             </div>
 
                             {/* Timing row */}

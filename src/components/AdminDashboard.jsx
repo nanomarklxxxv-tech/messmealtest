@@ -104,7 +104,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Menu state
     const [menuInputs, setMenuInputs] = useState({ breakfast: '', lunch: '', snacks: '', dinner: '' });
-    const [menuNotes, setMenuNotes] = useState({ breakfast: '', lunch: '', snacks: '', dinner: '' });
     const [menuDate, setMenuDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menuHostel, setMenuHostel] = useState(DEFAULT_HOSTELS[0]);
     const [menuType, setMenuType] = useState(DEFAULT_MESS_TYPES[0]);
@@ -133,11 +132,20 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Timing states
     const [editTimings, setEditTimings] = useState(config?.mealTimings || DEFAULT_MEAL_TIMINGS);
+    const [editFoodLimits, setEditFoodLimits] = useState(config?.foodLimits || { Breakfast: '', Lunch: '', Snacks: '', Dinner: '' });
     const [newOverride, setNewOverride] = useState({ mealType: 'Breakfast', startDate: '', endDate: '', start: '', end: '', label: '' });
 
     // Custom confirm modal state
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, isDestructive: true });
     const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
+
+    useEffect(() => {
+        if (config) {
+            if (config.mealTimings) setEditTimings(config.mealTimings);
+            if (config.foodLimits) setEditFoodLimits(config.foodLimits);
+            if (config.tagline) setNewTagline(config.tagline);
+        }
+    }, [config]);
 
     const monthOptions = Array.from({ length: 12 }, (_, i) => ({
         value: i,
@@ -318,19 +326,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         snacks: Array.isArray(dayMenu.snacks) ? dayMenu.snacks.join('\n') : dayMenu.snacks || '',
                         dinner: Array.isArray(dayMenu.dinner) ? dayMenu.dinner.join('\n') : dayMenu.dinner || ''
                     });
-                    setMenuNotes({
-                        breakfast: dayMenu.breakfast_notes || '',
-                        lunch: dayMenu.lunch_notes || '',
-                        snacks: dayMenu.snacks_notes || '',
-                        dinner: dayMenu.dinner_notes || ''
-                    });
                 } else {
                     setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
-                    setMenuNotes({ breakfast: '', lunch: '', snacks: '', dinner: '' });
                 }
             } else {
                 setMenuInputs({ breakfast: '', lunch: '', snacks: '', dinner: '' });
-                setMenuNotes({ breakfast: '', lunch: '', snacks: '', dinner: '' });
             }
         });
         return () => unsub();
@@ -846,7 +846,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
             const mealKey = session.toLowerCase();
             const itemsText = menuInputs[mealKey];
-            const notesText = menuNotes[mealKey] || '';
             if (itemsText === undefined) return;
             const newItems = itemsText.split('\n').map(i => i.trim()).filter(i => i);
 
@@ -894,13 +893,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 dates: [dayNum]
                             };
                             newDayGroup[mealKey] = newItems;
-                            newDayGroup[mealKey + '_notes'] = notesText;
 
                             days[dayIdx] = updatedOldGroup;
                             days.push(newDayGroup);
                         } else {
                             days[dayIdx][mealKey] = newItems;
-                            days[dayIdx][mealKey + '_notes'] = notesText;
                         }
                     } else {
                         const dayAbbr = dObj.toLocaleString('en-US', { weekday: 'short' });
@@ -909,13 +906,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             dayAbbr: dayAbbr,
                             dates: [dayNum],
                             breakfast: mealKey === 'breakfast' ? newItems : [],
-                            breakfast_notes: mealKey === 'breakfast' ? notesText : '',
                             lunch: mealKey === 'lunch' ? newItems : [],
-                            lunch_notes: mealKey === 'lunch' ? notesText : '',
                             snacks: mealKey === 'snacks' ? newItems : [],
-                            snacks_notes: mealKey === 'snacks' ? notesText : '',
-                            dinner: mealKey === 'dinner' ? newItems : [],
-                            dinner_notes: mealKey === 'dinner' ? notesText : ''
+                            dinner: mealKey === 'dinner' ? newItems : []
                         });
                     }
 
@@ -1627,25 +1620,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                     Save {meal}
                                                 </Button>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Menu Items</label>
-                                                    <textarea
-                                                        value={menuInputs[meal.toLowerCase()]}
-                                                        onChange={(e) => setMenuInputs({ ...menuInputs, [meal.toLowerCase()]: e.target.value })}
-                                                        placeholder={`Enter ${meal} menu items...`}
-                                                        className="w-full p-4 bg-white/50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-32 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-widest opacity-60 ml-1">Food Limits / Instructions</label>
-                                                    <textarea
-                                                        value={menuNotes[meal.toLowerCase()]}
-                                                        onChange={(e) => setMenuNotes({ ...menuNotes, [meal.toLowerCase()]: e.target.value })}
-                                                        placeholder="e.g. Chicken 150g, Curd should be thick..."
-                                                        className="w-full p-4 bg-white/50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-32 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
-                                                    />
-                                                </div>
+                                            <div className="space-y-4">
+                                                <textarea
+                                                    value={menuInputs[meal.toLowerCase()]}
+                                                    onChange={(e) => setMenuInputs({ ...menuInputs, [meal.toLowerCase()]: e.target.value })}
+                                                    placeholder={`Enter ${meal} menu items...`}
+                                                    className="w-full p-4 bg-white/50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl h-32 resize-none outline-none focus:border-[#2E7D32] focus:ring-2 focus:ring-[#2E7D32]/20 text-zinc-900 dark:text-white placeholder-zinc-500 transition-colors shadow-inner"
+                                                />
                                             </div>
                                         </div>
                                     )
@@ -2705,6 +2686,32 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     <Button onClick={updateTimings} className="bg-[#2E7D32] dark:bg-[#7C3AED] text-white w-full sm:w-auto px-10">
                                         Save Permanent Timings
                                     </Button>
+
+                                    {/* Global Food Limits */}
+                                    <div className="pt-10 border-t border-zinc-200 dark:border-white/10 mt-10">
+                                        <h4 className="font-heading font-bold text-[#0D0D0D] dark:text-white text-lg flex items-center gap-2 mb-6">
+                                            <Utensils size={20} className="text-[#2E7D32] dark:text-[#A78BFA]" /> Global Food Limits / Instructions
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            {MEAL_ORDER.map(meal => (
+                                                <div key={meal} className="bg-zinc-50 dark:bg-black/20 p-4 rounded-2xl border border-zinc-100 dark:border-white/5">
+                                                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block mb-2">{meal}</label>
+                                                    <textarea
+                                                        value={editFoodLimits[meal] || ''}
+                                                        onChange={(e) => setEditFoodLimits(prev => ({ ...prev, [meal]: e.target.value }))}
+                                                        placeholder="e.g. Chicken 150g, Curd should be thick..."
+                                                        className="w-full p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl text-xs outline-none focus:border-[#2E7D32] h-24 resize-none"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Button 
+                                            onClick={() => onUpdateConfig({ foodLimits: editFoodLimits })} 
+                                            className="mt-6 bg-[#2E7D32] dark:bg-[#7C3AED] text-white px-10 shadow-lg hover:scale-105 active:scale-95 transition-all"
+                                        >
+                                            Save Global Food Limits
+                                        </Button>
+                                    </div>
 
                                     {/* Temporary Overrides */}
                                     <div className="pt-10 border-t border-zinc-200 dark:border-white/10">

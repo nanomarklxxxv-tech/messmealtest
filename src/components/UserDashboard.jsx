@@ -14,6 +14,7 @@ import { OfflineIndicator } from './ui/OfflineIndicator';
 import { BouncingLogoScreen } from './ui/LoadingScreen';
 import { DateStrip } from './DateStrip';
 import { MenuGrid } from './MenuGrid';
+import { FoodLimitsView } from './FoodLimitsView';
 import { ProfileSetupScreen } from './ProfileSetup';
 import { SuccessModal } from './ui/SuccessModal';
 import { callGemini, callCalorieNinjas, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
@@ -22,6 +23,7 @@ import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
+    const [viewType, setViewType] = useState('daily'); // 'daily' or 'limits'
     const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menu, setMenu] = useState(null);
     const [isLoadingMenu, setIsLoadingMenu] = useState(true);
@@ -609,17 +611,49 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                             ))
                         )}
 
-                        <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
-                        <MenuGrid
-                            menu={menu}
-                            isLoading={isLoadingMenu}
-                            activeTimings={activeTimings}
-                            selectedDateStr={selectedDate}
-                            nutritionTips={nutritionTips}
-                            onAnalyze={handleNutritionAnalysis}
-                            aiLoading={aiLoading}
-                            theme={theme}
-                        />
+                        <div className="flex justify-end mb-4">
+                            <div className="bg-[#F0F0F0] dark:bg-[#1A1A1A] border border-[#E4E4E4] dark:border-[#2A2A2A] p-1 rounded-pill inline-flex shadow-sm">
+                                <button
+                                    onClick={() => setViewType('daily')}
+                                    className={`px-5 py-2 rounded-pill text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewType === 'daily'
+                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-md scale-105'
+                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
+                                        }`}
+                                >
+                                    Daily Menu
+                                </button>
+                                <button
+                                    onClick={() => setViewType('limits')}
+                                    className={`px-5 py-2 rounded-pill text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewType === 'limits'
+                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-md scale-105'
+                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
+                                        }`}
+                                >
+                                    Food Limits
+                                </button>
+                            </div>
+                        </div>
+
+                        {viewType === 'daily' ? (
+                            <>
+                                <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                                <MenuGrid
+                                    menu={menu}
+                                    isLoading={isLoadingMenu}
+                                    activeTimings={activeTimings}
+                                    selectedDateStr={selectedDate}
+                                    nutritionTips={nutritionTips}
+                                    onAnalyze={handleNutritionAnalysis}
+                                    aiLoading={aiLoading}
+                                    theme={theme}
+                                />
+                            </>
+                        ) : (
+                            <FoodLimitsView 
+                                foodLimits={config?.foodLimits} 
+                                theme={theme} 
+                            />
+                        )}
                     </div>
                 )}
 
