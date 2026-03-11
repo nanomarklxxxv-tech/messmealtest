@@ -132,7 +132,21 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Timing states
     const [editTimings, setEditTimings] = useState(config?.mealTimings || DEFAULT_MEAL_TIMINGS);
-    const [editFoodLimits, setEditFoodLimits] = useState(config?.foodLimits || { Breakfast: '', Lunch: '', Snacks: '', Dinner: '' });
+    const [editFoodLimits, setEditFoodLimits] = useState(config?.foodLimits || `MESS SERVICE INSTRUCTIONS:
+1.	Thick curd must be served as per the menu, either during lunch or dinner.
+2.	Fresh salad must be served every day as per the menu.
+3.	The toaster should be kept functional every day.
+4.	A weighing machine must be used while serving Chicken and Paneer.
+5.	Chicken should weigh 150 g (and 180 g on Sundays) after cooking, i.e., before serving (excluding bowl weight and gravy).
+6.	Paneer should be soft and must weigh 70 g after cooking, i.e., before serving (excluding bowl weight and gravy).
+7.	Roti/Phulka/Chapathi should be prepared using 100% good-quality Atta.
+8.	White Rice (Sona Masuri) must be cooked properly every day — neither undercooked nor overcooked.
+9.	All wet gravy-based curries should be prepared with 75% vegetables and 25% gravy.
+10.	Egg Bhurji should be served as 45 g (after cooking).
+11.	The quantity of an item may vary depending on the size served by the caterer.
+12.	Fresh juice served in the Special Menu must be atleast 250 ml. Fresh juices, sweet items, and soups included in the Special Menu must be of the highest quality. Please use minimal water and sugar while preparing the juices.  
+13.	Food items like Vada, Dosa, Set Dosa should be served in 2 standard-sized pieces; if the size is smaller, 3 pieces must be served. (in breakfast)
+14.	Fryums should be served only as per the menu. No additional or different types of fryums should be served.`);
     const [newOverride, setNewOverride] = useState({ mealType: 'Breakfast', startDate: '', endDate: '', start: '', end: '', label: '' });
 
     // Custom confirm modal state
@@ -1567,36 +1581,42 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             </div>
                         </Card>
 
-                        {/* Global Food Limits Card for easier discoverability */}
+                        {/* Global Food Limits Card - Unified Entry Point */}
                         <Card className="bg-white dark:bg-[#16162A] border-t-4 border-t-amber-500 border border-amber-500/20 shadow-sm overflow-hidden">
                             <div className="p-6">
                                 <h3 className="font-heading font-black text-[#0D0D0D] dark:text-white mb-2 flex items-center gap-3 text-lg tracking-tight">
-                                    <Utensils size={24} className="text-amber-500" /> Global Food Limits / Instructions
+                                    <Utensils size={24} className="text-amber-500" /> Publish Mess Service Instructions
                                 </h3>
                                 <p className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-6">
-                                    These apply to all days automatically. Set them once here.
+                                    General guidelines and food quantity limits for students.
                                 </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    {MEAL_ORDER.map(meal => (
-                                        <div key={meal} className="space-y-2">
-                                            <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block ml-1">{meal}</label>
-                                            <textarea
-                                                value={editFoodLimits[meal] || ''}
-                                                onChange={(e) => setEditFoodLimits(prev => ({ ...prev, [meal]: e.target.value }))}
-                                                placeholder="e.g. Chicken 150g..."
-                                                className="w-full p-3 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl text-xs outline-none focus:border-amber-500 h-24 resize-none transition-all"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-6 flex justify-end">
-                                    <Button 
-                                        onClick={() => onUpdateConfig({ foodLimits: editFoodLimits })} 
-                                        className="bg-amber-500 text-white px-8 py-3 rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all text-sm font-black uppercase tracking-widest"
-                                        icon={Save}
-                                    >
-                                        Update Global Limits
-                                    </Button>
+                                <div className="space-y-4">
+                                    <textarea
+                                        value={editFoodLimits}
+                                        onChange={(e) => setEditFoodLimits(e.target.value)}
+                                        placeholder="Enter all service instructions and food limits here..."
+                                        className="w-full p-5 bg-zinc-100 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-2xl text-sm outline-none focus:border-amber-500 h-[400px] resize-none transition-all leading-relaxed"
+                                    />
+                                    <div className="flex justify-end">
+                                        <Button 
+                                            onClick={() => {
+                                                setConfirmModal({
+                                                    isOpen: true,
+                                                    title: 'Publish Instructions?',
+                                                    message: 'These instructions will be visible to all students immediately.',
+                                                    isDestructive: false,
+                                                    onConfirm: async () => {
+                                                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                                        await onUpdateConfig({ foodLimits: editFoodLimits });
+                                                    }
+                                                });
+                                            }}
+                                            className="bg-amber-500 text-white px-10 py-3 rounded-xl shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all text-sm font-black uppercase tracking-widest"
+                                            icon={Save}
+                                        >
+                                            Publish Instructions
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </Card>
@@ -2721,29 +2741,22 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         Save Permanent Timings
                                     </Button>
 
-                                    {/* Global Food Limits */}
+                                    {/* Global Food Limits - Unified */}
                                     <div className="pt-10 border-t border-zinc-200 dark:border-white/10 mt-10">
                                         <h4 className="font-heading font-bold text-[#0D0D0D] dark:text-white text-lg flex items-center gap-2 mb-6">
-                                            <Utensils size={20} className="text-[#2E7D32] dark:text-[#A78BFA]" /> Global Food Limits / Instructions
+                                            <Utensils size={20} className="text-[#2E7D32] dark:text-[#A78BFA]" /> Mess Service Instructions
                                         </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                            {MEAL_ORDER.map(meal => (
-                                                <div key={meal} className="bg-zinc-50 dark:bg-black/20 p-4 rounded-2xl border border-zinc-100 dark:border-white/5">
-                                                    <label className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block mb-2">{meal}</label>
-                                                    <textarea
-                                                        value={editFoodLimits[meal] || ''}
-                                                        onChange={(e) => setEditFoodLimits(prev => ({ ...prev, [meal]: e.target.value }))}
-                                                        placeholder="e.g. Chicken 150g, Curd should be thick..."
-                                                        className="w-full p-3 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl text-xs outline-none focus:border-[#2E7D32] h-24 resize-none"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
+                                        <textarea
+                                            value={editFoodLimits}
+                                            onChange={(e) => setEditFoodLimits(e.target.value)}
+                                            placeholder="Enter all service instructions and food limits here..."
+                                            className="w-full p-5 bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-white/10 rounded-2xl text-sm outline-none focus:border-[#2E7D32] h-[300px] resize-none transition-all leading-relaxed"
+                                        />
                                         <Button 
                                             onClick={() => onUpdateConfig({ foodLimits: editFoodLimits })} 
                                             className="mt-6 bg-[#2E7D32] dark:bg-[#7C3AED] text-white px-10 shadow-lg hover:scale-105 active:scale-95 transition-all"
                                         >
-                                            Save Global Food Limits
+                                            Save Instructions
                                         </Button>
                                     </div>
 
