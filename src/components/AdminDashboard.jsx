@@ -221,7 +221,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'proofs'),
             orderBy('createdAt', 'desc'),
-            limit(50)
+            limit(200)
         );
         const unsub = onSnapshot(q, (snap) => {
             setProofs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -239,7 +239,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'ratings'),
             orderBy('createdAt', 'desc'),
-            limit(50)
+            limit(200)
         );
         const unsub = onSnapshot(q, (snap) => {
             setFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -257,7 +257,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'feedback_reports'),
             orderBy('createdAt', 'desc'),
-            limit(50)
+            limit(200)
         );
         const unsub = onSnapshot(q, (snap) => {
             setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -278,7 +278,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     // Fetch notices
     useEffect(() => {
         setIsLoadingNotices(true);
-        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(50));
+        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'notices'), orderBy('createdAt', 'desc'), limit(200));
         const unsub = onSnapshot(q, (snap) => {
             const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const today = new Date().toLocaleDateString('en-CA');
@@ -446,7 +446,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
                 try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'users', userId), { approved: false });
+                    await updateDoc(doc(db, 'artifacts', appId, 'users', userId), {
+                        role: 'revoked',
+                        approved: false,
+                        updatedAt: serverTimestamp()
+                    });
                     setSuccessModal({
                         isOpen: true,
                         title: "Access Revoked!",
@@ -463,6 +467,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         setSubmitting(true);
         try {
             const email = newAdminEmail.trim().toLowerCase();
+
+            // BUG 2 FIX: Validate VIT domain before Firestore query
+            if (!email.endsWith('@vitap.ac.in') &&
+                !email.endsWith('@vit.ac.in') &&
+                !email.endsWith('@vitapstudent.ac.in')) {
+                throw new Error('Only VIT-AP institutional emails can be made admin.');
+            }
+
             const q = query(collection(db, 'artifacts', appId, 'users'), where('email', '==', email), limit(1));
             const snap = await getDocs(q);
 
@@ -477,7 +489,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 throw new Error("User is already an Admin or Super Admin.");
             }
 
-            await updateDoc(doc(db, 'artifacts', appId, 'users', userDoc.id), { role: 'admin', updatedAt: serverTimestamp() });
+            // BUG 1 FIX: Set approved: true and adminApproved: true when granting admin role
+            await updateDoc(doc(db, 'artifacts', appId, 'users', userDoc.id), {
+                role: 'admin',
+                approved: true,
+                adminApproved: true,
+                updatedAt: serverTimestamp()
+            });
             await sendAdminNotificationEmail(email, 'Admin', 'ADD_ADMIN');
 
             setSuccessModal({
@@ -516,8 +534,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     const newOwnerDoc = snap.docs[0];
 
                     const batch = writeBatch(db);
-                    // Make new owner super_admin
-                    batch.update(doc(db, 'artifacts', appId, 'users', newOwnerDoc.id), { role: 'super_admin', updatedAt: serverTimestamp() });
+                    // BUG 3 FIX: Make new owner super_admin with approved: true and adminApproved: true
+                    batch.update(doc(db, 'artifacts', appId, 'users', newOwnerDoc.id), {
+                        role: 'super_admin',
+                        approved: true,
+                        adminApproved: true,
+                        updatedAt: serverTimestamp()
+                    });
                     // Downgrade current super_admin to admin
                     batch.update(doc(db, 'artifacts', appId, 'users', user.uid), { role: 'admin', updatedAt: serverTimestamp() });
                     await sendAdminNotificationEmail(email, 'Super Admin', 'TRANSFER_OWNERSHIP');
@@ -896,6 +919,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         }
 
         setUploadingMenu(true);
+        const uploadToast = toast.loading('Uploading menu to database...');
         try {
             const processedMenu = await parseMenuXLSX(csvFile, csvMonth, csvYear);
 
@@ -918,9 +942,16 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             toast.success(`Menu uploaded! ${totalDocs} records updated.`);
             setCsvFile(null);
         } catch (error) {
-            console.error(error);
-            toast.error("Error parsing or uploading CSV/Excel file");
+            console.error('Upload failed:', error);
+            if (error?.code === 'permission-denied') {
+              toast.error('Permission denied — check Firestore security rules.');
+            } else if (error?.message?.includes('timed out')) {
+              toast.error('Upload timed out — check your Firestore rules allow admin writes.');
+            } else {
+              toast.error(`Upload failed: ${error?.message || 'Unknown error'}`);
+            }
         } finally {
+            toast.dismiss(uploadToast);
             setUploadingMenu(false);
         }
     };
@@ -2081,6 +2112,56 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             case 'users':
                 return (
                     <div className="space-y-6 max-w-7xl">
+
+                        {/* Pending Admin Requests */}
+                        {(() => {
+                            const pendingAdminRequests = usersList.filter(u => u.adminRequested === true && u.adminApproved !== true);
+                            if (pendingAdminRequests.length === 0) return null;
+                            return (
+                                <Card className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-500/30 shadow-sm">
+                                    <h3 className="font-heading font-bold text-amber-700 dark:text-amber-400 mb-4 flex items-center gap-3 tracking-tight text-lg">
+                                        <ShieldAlert size={20} /> Pending Admin Requests
+                                        <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-black">{pendingAdminRequests.length}</span>
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {pendingAdminRequests.map(u => (
+                                            <div key={u.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-black/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-500/20">
+                                                <div>
+                                                    <p className="font-heading font-bold text-zinc-900 dark:text-white">{u.name || 'N/A'}</p>
+                                                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{u.email}</p>
+                                                    {u.hostel && <p className="text-xs text-zinc-400 mt-0.5">{u.hostel} · {u.messType}</p>}
+                                                </div>
+                                                <Button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const userRef = doc(db, 'artifacts', appId, 'users', u.id);
+                                                            await updateDoc(userRef, {
+                                                                adminApproved: true,
+                                                                role: 'admin',
+                                                                approved: true,
+                                                                adminApprovedAt: serverTimestamp()
+                                                            });
+                                                            await sendAdminNotificationEmail(u.email, 'Admin', 'ADD_ADMIN');
+                                                            setSuccessModal({
+                                                                isOpen: true,
+                                                                title: 'Admin Access Granted!',
+                                                                message: `${u.name || u.email} has been granted admin access.`
+                                                            });
+                                                        } catch (err) {
+                                                            toast.error('Failed to approve admin request.');
+                                                        }
+                                                    }}
+                                                    className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-black py-2 px-4 min-w-[180px] shrink-0"
+                                                >
+                                                    <ShieldCheck size={14} className="mr-2" /> Approve Admin Access
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </Card>
+                            );
+                        })()}
+
                         <div className="flex flex-wrap gap-2 mb-6 p-2 bg-white dark:bg-[#16162A] border border-zinc-200 dark:border-white/10 rounded-2xl w-fit shadow-sm">
                             {[
                                 { id: 'all', label: 'All Users' },
@@ -2385,43 +2466,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                             <p className="text-sm font-semibold text-zinc-400">No mess type groups created yet.</p>
                                         </div>
                                     )}
-                                </div>
-                            </Card>
-
-                            {/* Domain Access & Global Approval */}
-                            <Card className="flex flex-col md:col-span-2 bg-white dark:bg-[#16162A] border-t-4 border-t-indigo-500 dark:border-t-violet-400 border border-indigo-500/20 dark:border-violet-400/20 shadow-sm">
-                                <h3 className="font-heading font-bold text-[#0D0D0D] dark:text-white text-lg tracking-tight mb-6 flex items-center gap-2">
-                                    <ShieldCheck className="text-indigo-500 dark:text-violet-400" size={24} />
-                                    Domain Access & Approval Settings
-                                </h3>
-                                <div className="space-y-6">
-                                    <div className="flex items-center justify-between bg-zinc-50 dark:bg-black/20 p-5 rounded-2xl border border-zinc-100 dark:border-white/5">
-                                        <div className="flex-1">
-                                            <p className="font-heading font-bold text-zinc-800 dark:text-white text-base">VIT-AP Domain Auto-Approval</p>
-                                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mt-1 max-w-md">
-                                                When enabled, students and faculty using @vitap.ac.in domains will be approved automatically upon sign up.
-                                                When disabled, every new user requires manual approval from an admin.
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={toggleAutoApproval}
-                                            className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${autoApprove ? 'bg-[#2E7D32] dark:bg-[#7C3AED]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
-                                        >
-                                            <span
-                                                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoApprove ? 'translate-x-8' : 'translate-x-1'}`}
-                                            />
-                                        </button>
-                                    </div>
-
-                                    <div className="bg-indigo-500/5 dark:bg-violet-400/5 border border-indigo-500/10 dark:border-violet-400/10 p-4 rounded-xl">
-                                        <div className="flex gap-3">
-                                            <Shield className="text-indigo-400 shrink-0" size={20} />
-                                            <div className="text-xs text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
-                                                <p className="text-indigo-600 dark:text-violet-300 font-bold mb-1 uppercase tracking-wider">Admin Bypass Rule</p>
-                                                Standard domain restrictions are now automatically bypassed for designated <span className="text-indigo-600 dark:text-violet-300 font-bold">Admins</span> and the <span className="text-indigo-600 dark:text-violet-300 font-bold">Super Admin</span> to ensure uninterrupted management access from any email provider.
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </Card>
 

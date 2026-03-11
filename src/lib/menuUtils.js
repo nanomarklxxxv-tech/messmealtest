@@ -137,6 +137,9 @@ export const uploadMenuBatch = async (processedMenu, targets, messTypes, userId)
         });
     });
 
-    await batch.commit();
+    const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Upload timed out. Check Firestore rules allow writes.')), 20000)
+    );
+    await Promise.race([batch.commit(), timeoutPromise]);
     return count;
 };

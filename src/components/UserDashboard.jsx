@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, addDoc, query, where, onSnapshot, doc, setDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { Utensils, User, LogOut, Camera, Shield, MessageSquare, Star, X, CheckCircle2, AlertTriangle, Clock4, Lock as LockIcon, Megaphone, RefreshCw, FileText, Image as ImageIcon, PlusCircle, Bell, BellOff, BellRing } from 'lucide-react';
 import { scheduleMealNotifications, clearMealNotifTimers, maybeNotifyNotice, getNotifPermission, requestNotifPermission } from '../lib/notificationService';
@@ -534,6 +534,53 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                         </div>
                     </motion.div>
                 )}
+
+                {/* Faculty Admin Request Banner */}
+                {userData?.role === 'faculty' && userData?.adminApproved !== true && userData?.adminRequested !== true && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-4 mt-2 bg-blue-500/10 border border-blue-500/20 rounded-[2rem] p-5 flex items-center gap-5 shadow-sm"
+                    >
+                        <div className="p-3 bg-blue-500 rounded-2xl text-white flex-shrink-0">
+                            <Shield size={22} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-blue-600 dark:text-blue-400">Want admin access?</p>
+                            <p className="text-xs text-blue-500/70 dark:text-blue-400/70">Request admin access and wait for approval from the super admin.</p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                try {
+                                    const userRef = doc(db, 'artifacts', appId, 'users', user.uid);
+                                    await updateDoc(userRef, { adminRequested: true });
+                                    toast.success('Request sent! Wait for super admin approval.');
+                                } catch (e) {
+                                    toast.error('Failed to send request.');
+                                }
+                            }}
+                            className="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all uppercase tracking-wider"
+                        >
+                            Request Admin Access
+                        </button>
+                    </motion.div>
+                )}
+
+                {userData?.role === 'faculty' && userData?.adminRequested === true && userData?.adminApproved !== true && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-4 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-[2rem] p-5 flex items-center gap-4 shadow-sm"
+                    >
+                        <div className="p-3 bg-amber-500 rounded-2xl text-white flex-shrink-0">
+                            <Clock4 size={20} />
+                        </div>
+                        <p className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                            ⏳ Admin access request pending approval...
+                        </p>
+                    </motion.div>
+                )}
+
                 {activeTab === 'menu' && (
                     <div className="space-y-8">
                         {isLoadingNotices ? (

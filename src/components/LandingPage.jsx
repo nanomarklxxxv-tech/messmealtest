@@ -15,7 +15,7 @@ const ROLE_META = {
         accentLight: '#2E7D32',
         accentDark: '#D4F000',
         emailPlaceholder: 'name.21bce@vitapstudent.ac.in',
-        description: 'Access your mess menu, rate meals and submit complaints.',
+        description: 'Use your @vitapstudent.ac.in email',
     },
     faculty: {
         label: 'Faculty / Staff',
@@ -23,16 +23,8 @@ const ROLE_META = {
         accentLight: '#0057FF',
         accentDark: '#D4F000',
         emailPlaceholder: 'name@vitap.ac.in',
-        description: 'Access your mess menu, rate meals and submit complaints.',
-    },
-    admin: {
-        label: 'Admin',
-        Icon: Shield,
-        accentLight: '#7C3AED',
-        accentDark: '#D4F000',
-        emailPlaceholder: 'admin@vitap.ac.in',
-        description: 'Manage menus, view feedback and control the mess system.',
-    },
+        description: 'Use your @vitap.ac.in or @vit.ac.in email',
+    }
 };
 
 /* ─────────────────────────────────────────────
@@ -230,8 +222,7 @@ export const LandingPage = ({ onLogin, loading, error, config }) => {
 
     const roleCards = [
         { id: 'student', Icon: User, label: 'Student', sub: 'View your mess menu' },
-        { id: 'faculty', Icon: Briefcase, label: 'Faculty/Staff', sub: 'Faculty access' },
-        { id: 'admin', Icon: Shield, label: 'Admin', sub: 'Manage the mess' },
+        { id: 'faculty', Icon: Briefcase, label: 'Faculty/Staff', sub: 'Faculty access' }
     ];
 
     // Reset visibility when switching back to role selection
