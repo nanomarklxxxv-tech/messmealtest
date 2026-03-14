@@ -391,9 +391,31 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
 
     const handleNutritionAnalysis = async (meal, menuText) => {
         setAiLoading(meal);
-        // Use CalorieNinjas for primary nutrition data
-        const result = await callCalorieNinjas(menuText, config?.calorieNinjasApiKey);
-        if (result) setNutritionTips(prev => ({ ...prev, [meal]: result }));
+        try {
+            // Step 1 — CalorieNinjas for raw numbers
+            const nutritionData = await callCalorieNinjas(
+                menuText,
+                config?.calorieNinjasApiKey
+            );
+
+            // Step 2 — Gemini for AI tip (only if key exists)
+            let aiTip = '';
+            if (config?.geminiApiKey) {
+                const geminiPrompt = `Given this meal: "${menuText}", and nutrition data: "${nutritionData}", give a 1-sentence health tip about this meal. Be concise and friendly.`;
+                aiTip = await callGemini(geminiPrompt, config.geminiApiKey);
+            }
+
+            const combined = aiTip
+                ? `${nutritionData}\n💡 ${aiTip}`
+                : nutritionData;
+
+            if (combined) setNutritionTips(prev => ({ ...prev, [meal]: combined }));
+        } catch (e) {
+            setNutritionTips(prev => ({
+                ...prev,
+                [meal]: 'Nutrition service temporarily unavailable.'
+            }));
+        }
         setAiLoading(null);
     };
 
