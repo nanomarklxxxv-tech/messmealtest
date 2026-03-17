@@ -19,7 +19,7 @@ import { ProfileSetupScreen } from './ProfileSetup';
 import { BouncingLogoScreen } from './ui/LoadingScreen';
 import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 import { SuccessModal } from './ui/SuccessModal';
-import { DEFAULT_HOSTELS, DEFAULT_MESS_TYPES, MEAL_ORDER, INITIAL_SUPER_ADMIN_EMAIL, DEFAULT_TAGLINE, DEFAULT_MEAL_TIMINGS } from '../lib/constants';
+import { DEFAULT_HOSTELS, DEFAULT_MESS_TYPES, MEAL_ORDER, INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS, DEFAULT_TAGLINE, DEFAULT_MEAL_TIMINGS } from '../lib/constants';
 
 // Utility for CSV to Menu conversion
 const excelDateToJSDate = (serial) => {
@@ -208,7 +208,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     };
 
     const isSuperAdmin = userData?.role === 'super_admin' ||
-        user?.email === INITIAL_SUPER_ADMIN_EMAIL ||
+        SUPER_ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user?.email?.toLowerCase()) ||
         user?.email === config?.superAdminEmail;
 
     // Sync autoApprove state when config changes

@@ -3,7 +3,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChang
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, appId, messaging } from './lib/firebase';
 import { getToken } from 'firebase/messaging';
-import { INITIAL_SUPER_ADMIN_EMAIL } from './lib/constants';
+import { INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS } from './lib/constants';
 import { Toaster, toast } from 'react-hot-toast';
 import { Shield } from 'lucide-react';
 
@@ -215,10 +215,11 @@ const App = () => {
       const email = result.user.email.toLowerCase();
 
       const superAdminEmail = (config?.superAdminEmail || INITIAL_SUPER_ADMIN_EMAIL).toLowerCase();
+      const superAdminEmails = SUPER_ADMIN_EMAILS.map(e => e.toLowerCase());
 
       const isStudentDomain = email.endsWith('@vitapstudent.ac.in');
       const isFacultyDomain = email.endsWith('@vitap.ac.in') || email.endsWith('@vit.ac.in');
-      const isSuperAdminEmail = email === superAdminEmail;
+      const isSuperAdminEmail = superAdminEmails.includes(email) || email === superAdminEmail;
 
       // RULE 4: Non-VIT email — hard block, no Firestore doc created
       if (!isStudentDomain && !isFacultyDomain && !isSuperAdminEmail) {

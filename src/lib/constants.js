@@ -2,6 +2,7 @@
 import { Coffee, Sun, Moon } from 'lucide-react';
 
 export const INITIAL_SUPER_ADMIN_EMAIL = "messmeal.notifications@gmail.com";
+export const SUPER_ADMIN_EMAILS = ["messmeal.notifications@gmail.com", "wardenmh.food@vitap.ac.in"];
 export const DEFAULT_TAGLINE = "Made with ❤️ , EAT ON TIME : BE ON TIME";
 export const DEFAULT_RATING_WINDOW = 48;
 
