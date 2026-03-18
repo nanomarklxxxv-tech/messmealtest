@@ -290,6 +290,52 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [submittingAll, setSubmittingAll] = useState(false);
     const [ratingComments, setRatingComments] = useState({});
 
+    const [editRegId, setEditRegId] = useState(
+        userData?.registrationId || ''
+    );
+    const [regIdError, setRegIdError] = useState('');
+
+    useEffect(() => {
+        if (userData?.registrationId) {
+            setEditRegId(userData.registrationId);
+        }
+    }, [userData?.registrationId]);
+
+    const saveRegId = async () => {
+        const val = editRegId.trim().toUpperCase();
+        if (userData?.role !== 'faculty') {
+            const regPattern = /^\d{2}[A-Z]{3}\d{4,5}$/;
+            if (!val) {
+                setRegIdError(
+                    'Registration number is required.'
+                );
+                return;
+            }
+            if (!regPattern.test(val)) {
+                setRegIdError(
+                    'Invalid format. Use format like 23BCEXXXXX'
+                );
+                return;
+            }
+        } else {
+            if (!val) {
+                setRegIdError('Employee ID is required.');
+                return;
+            }
+        }
+        try {
+            await updateDoc(
+                doc(db, 'artifacts', appId,
+                    'users', user.uid),
+                { registrationId: val }
+            );
+            toast.success('Registration ID saved!');
+            setRegIdError('');
+        } catch {
+            toast.error('Failed to save. Please try again.');
+        }
+    };
+
     const submitMealRating = async (meal) => {
         if (isPending) return toast.error("Please wait for account approval to submit ratings.");
         if (!ratings[meal]) return;
@@ -1092,6 +1138,56 @@ Keep the health tip short, practical and encouraging.`;
                                         <span className="text-sm font-semibold text-dark dark:text-white">{userData?.studyingYear} Year</span>
                                     </div>
                                 )}
+
+                                <div className="space-y-2 pt-2">
+                                    <label className="block text-[10px] font-black
+                                        text-zinc-500 dark:text-zinc-400 uppercase
+                                        tracking-widest ml-1">
+                                        {userData?.role === 'faculty'
+                                            ? 'Employee ID' : 'Registration Number'}
+                                    </label>
+                                    <div className="flex gap-3">
+                                        <input
+                                            type="text"
+                                            value={editRegId}
+                                            onChange={(e) => {
+                                                setEditRegId(
+                                                    e.target.value.toUpperCase()
+                                                );
+                                                setRegIdError('');
+                                            }}
+                                            placeholder={userData?.role === 'faculty'
+                                                ? 'e.g. EMP1234'
+                                                : 'e.g. 23BCEXXXXX'}
+                                            className="flex-1 p-3 bg-zinc-100
+                                                dark:bg-black/40 border border-zinc-200
+                                                dark:border-white/10 rounded-xl outline-none
+                                                focus:border-primary focus:ring-2
+                                                focus:ring-primary/20 text-zinc-900
+                                                dark:text-white font-bold
+                                                transition-colors"
+                                        />
+                                        <Button
+                                            onClick={saveRegId}
+                                            className="px-6 py-3 text-xs font-black
+                                                uppercase tracking-widest"
+                                        >
+                                            Save
+                                        </Button>
+                                    </div>
+                                    {regIdError && (
+                                        <p className="text-[11px] text-red-500 font-bold ml-1">
+                                            {regIdError}
+                                        </p>
+                                    )}
+                                    {userData?.role !== 'faculty' && (
+                                        <p className="text-[10px] text-zinc-400
+                                            font-medium italic ml-1">
+                                            Format: 23BCEXXXXX
+                                            (2 digits + 3 letters + 4-5 digits)
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-4 mt-8 pt-6 border-t border-black/10 dark:border-white/10">

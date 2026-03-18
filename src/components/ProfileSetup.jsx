@@ -82,8 +82,11 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                             </div>
 
                             <div>
-                                <label className="block text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1 opacity-70">
-                                    {userData?.role === 'faculty' ? 'Employee ID' : 'Registration Number'}
+                                <label className="block text-[10px] font-black
+                                    text-primary uppercase tracking-[0.2em]
+                                    mb-1 opacity-70">
+                                    {userData?.role === 'faculty'
+                                        ? 'Employee ID' : 'Registration Number'}
                                 </label>
                                 <input
                                     type="text"
@@ -93,17 +96,26 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                                         setRegistrationId(val);
                                         setRegistrationIdError('');
                                     }}
-                                    placeholder={userData?.role === 'faculty' ? 'e.g. EMP1234' : 'e.g. 23BCE7846'}
-                                    className="w-full bg-slate-50 dark:bg-black/20 border-b-2 border-primary/40 focus:border-primary text-dark dark:text-white text-lg py-3 px-1 font-bold outline-none transition-colors"
+                                    placeholder={userData?.role === 'faculty'
+                                        ? 'e.g. EMP1234'
+                                        : 'e.g. 23BCEXXXXX'}
+                                    className="w-full bg-slate-50 dark:bg-black/20
+                                        border-b-2 border-primary/40
+                                        focus:border-primary text-dark dark:text-white
+                                        text-lg py-3 px-1 font-bold outline-none
+                                        transition-colors"
                                 />
                                 {registrationIdError && (
-                                    <p className="text-[11px] text-red-500 mt-1 font-bold">
+                                    <p className="text-[11px] text-red-500
+                                        mt-1 font-bold">
                                         {registrationIdError}
                                     </p>
                                 )}
                                 {userData?.role !== 'faculty' && (
-                                    <p className="text-[10px] text-zinc-400 mt-1 font-medium italic">
-                                        Format: 23BCE7846 (2 digits + 3 letters + 4-5 digits)
+                                    <p className="text-[10px] text-zinc-400
+                                        mt-1 font-medium italic">
+                                        Format: 23BCEXXXXX
+                                        (2 digits + 3 letters + 4-5 digits)
                                     </p>
                                 )}
                             </div>
@@ -118,16 +130,22 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, theme = 'orange
                                 if (userData?.role !== 'faculty') {
                                     const regPattern = /^\d{2}[A-Z]{3}\d{4,5}$/;
                                     if (!registrationId.trim()) {
-                                        setRegistrationIdError('Registration number is required.');
+                                        setRegistrationIdError(
+                                            'Registration number is required.'
+                                        );
                                         return;
                                     }
                                     if (!regPattern.test(registrationId.trim())) {
-                                        setRegistrationIdError('Invalid format. Use format like 23BCE7846');
+                                        setRegistrationIdError(
+                                            'Invalid format. Use format like 23BCEXXXXX'
+                                        );
                                         return;
                                     }
                                 } else {
                                     if (!registrationId.trim()) {
-                                        setRegistrationIdError('Employee ID is required.');
+                                        setRegistrationIdError(
+                                            'Employee ID is required.'
+                                        );
                                         return;
                                     }
                                 }
