@@ -141,21 +141,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Timing states
     const [editTimings, setEditTimings] = useState(config?.mealTimings || DEFAULT_MEAL_TIMINGS);
-    const [editFoodLimits, setEditFoodLimits] = useState(config?.foodLimits || `MESS SERVICE INSTRUCTIONS:
-1.	Thick curd must be served as per the menu, either during lunch or dinner.
-2.	Fresh salad must be served every day as per the menu.
-3.	The toaster should be kept functional every day.
-4.	A weighing machine must be used while serving Chicken and Paneer.
-5.	Chicken should weigh 150 g (and 180 g on Sundays) after cooking, i.e., before serving (excluding bowl weight and gravy).
-6.	Paneer should be soft and must weigh 70 g after cooking, i.e., before serving (excluding bowl weight and gravy).
-7.	Roti/Phulka/Chapathi should be prepared using 100% good-quality Atta.
-8.	White Rice (Sona Masuri) must be cooked properly every day — neither undercooked nor overcooked.
-9.	All wet gravy-based curries should be prepared with 75% vegetables and 25% gravy.
-10.	Egg Bhurji should be served as 45 g (after cooking).
-11.	The quantity of an item may vary depending on the size served by the caterer.
-12.	Fresh juice served in the Special Menu must be atleast 250 ml. Fresh juices, sweet items, and soups included in the Special Menu must be of the highest quality. Please use minimal water and sugar while preparing the juices.  
-13.	Food items like Vada, Dosa, Set Dosa should be served in 2 standard-sized pieces; if the size is smaller, 3 pieces must be served. (in breakfast)
-14.	Fryums should be served only as per the menu. No additional or different types of fryums should be served.`);
+    const [editFoodLimits, setEditFoodLimits] = useState(
+        config?.foodLimits || ''
+    );
     const [newOverride, setNewOverride] = useState({ mealType: 'Breakfast', startDate: '', endDate: '', start: '', end: '', label: '' });
 
     // Custom confirm modal state
@@ -700,14 +688,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         try {
             const email = newAdminEmail.trim().toLowerCase();
 
-            if (!ALLOWED_DOMAINS.some(domain => email.endsWith(domain)) &&
-                !WHITELISTED_EMAILS.includes(email)) {
+            if (!email.endsWith('@vitap.ac.in') &&
+                !email.endsWith('@vit.ac.in') &&
+                !email.endsWith('@vitapstudent.ac.in')) {
                 throw new Error(
-                    'Email domain not authorized for Admin access.'
+                    'Only VIT-AP institutional emails ' +
+                    'can be made admin.'
                 );
             }
 
-            // Try query by email field first
             let userDocRef = null;
             let foundUserData = null;
 
@@ -719,13 +708,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             const snap = await getDocs(q);
 
             if (!snap.empty) {
-                userDocRef = doc(
-                    db, 'artifacts', appId, 'users', snap.docs[0].id
-                );
+                userDocRef = doc(db, 'artifacts', appId, 'users', snap.docs[0].id);
                 foundUserData = snap.docs[0].data();
             } else {
-                // Fallback: scan all users match by email
-                // handles old users with no email field
                 const allSnap = await getDocs(
                     collection(db, 'artifacts', appId, 'users')
                 );
@@ -733,24 +718,20 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     (d.data().email || '').toLowerCase() === email
                 );
                 if (match) {
-                    userDocRef = doc(
-                        db, 'artifacts', appId, 'users', match.id
-                    );
+                    userDocRef = doc(db, 'artifacts', appId, 'users', match.id);
                     foundUserData = match.data();
                 }
             }
 
-            if (!userDocRef) {
+            if (!userDocRef || !foundUserData) {
                 throw new Error(
                     'User not found. They must sign in at least once ' +
                     'before you can make them an Admin.'
                 );
             }
 
-            if (
-                foundUserData.role === 'admin' ||
-                foundUserData.role === 'super_admin'
-            ) {
+            if (foundUserData.role === 'admin' ||
+                foundUserData.role === 'super_admin') {
                 throw new Error('User is already an Admin or Super Admin.');
             }
 
@@ -767,8 +748,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setSuccessModal({
                 isOpen: true,
                 title: 'Admin Added!',
-                message: `User "${email}" has been successfully granted
-                    admin privileges.`
+                message: `User "${email}" has been successfully granted admin privileges.`
             });
             toast.success('Admin access granted.');
             setNewAdminEmail('');
