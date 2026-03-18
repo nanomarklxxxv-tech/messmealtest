@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, addDoc, query, where, onSnapshot, doc, setDoc, updateDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, doc, setDoc, updateDoc, getDocs, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { Utensils, User, LogOut, Camera, Shield, MessageSquare, Star, X, CheckCircle2, AlertTriangle, Clock4, Lock as LockIcon, Megaphone, RefreshCw, FileText, Image as ImageIcon, PlusCircle, Bell, BellOff, BellRing } from 'lucide-react';
 import { scheduleMealNotifications, clearMealNotifTimers, maybeNotifyNotice, getNotifPermission, requestNotifPermission } from '../lib/notificationService';
