@@ -93,10 +93,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [usersPage, setUsersPage] = useState(1);
     const USERS_PER_PAGE = 30;
 
-    useEffect(() => {
-        setUsersPage(1);
-    }, [userFilter, searchQuery]);
-
     // Proof filters state
     const [proofDateFilter, setProofDateFilter] = useState('');
     const [proofMessTypeFilter, setProofMessTypeFilter] = useState('ALL');
@@ -143,7 +139,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [newMessGroupTypes, setNewMessGroupTypes] = useState([]);
     const [newTagline, setNewTagline] = useState(config?.tagline || '');
     const [newApiKey, setNewApiKey] = useState(config?.geminiApiKey || '');
-    const [autoApprove, setAutoApprove] = useState(config?.autoApproveDomainUsers ?? true);
     const [newOwnerEmail, setNewOwnerEmail] = useState('');
 
     // Timing states
@@ -156,6 +151,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     // Custom confirm modal state
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, isDestructive: true });
     const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
+
+    useEffect(() => {
+        setUsersPage(1);
+    }, [userFilter, searchQuery]);
 
     useEffect(() => {
         if (config) {
@@ -214,13 +213,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const isSuperAdmin = userData?.role === 'super_admin' ||
         SUPER_ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user?.email?.toLowerCase()) ||
         user?.email === config?.superAdminEmail;
-
-    // Sync autoApprove state when config changes
-    useEffect(() => {
-        if (config?.autoApproveDomainUsers !== undefined) {
-            setAutoApprove(config.autoApproveDomainUsers);
-        }
-    }, [config]);
 
     // Live Clock Effect
     useEffect(() => {
@@ -947,21 +939,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         } catch (e) { toast.error('Failed to update API Key'); }
     };
 
-    const toggleAutoApproval = async () => {
-        try {
-            const newValue = !autoApprove;
-            await setDoc(doc(db, 'artifacts', appId, 'config', 'settings'), { autoApproveDomainUsers: newValue }, { merge: true });
-            await onUpdateConfig({ autoApproveDomainUsers: newValue });
-            setAutoApprove(newValue);
-            setSuccessModal({
-                isOpen: true,
-                title: "Preference Updated!",
-                message: `Auto-approval for permitted domains is now ${newValue ? 'ENABLED' : 'DISABLED'}.`
-            });
-            toast.success(`User auto-approval is now ${newValue ? 'Enabled' : 'Disabled'}`);
-        } catch (e) { toast.error("Failed to update approval setting"); }
-    };
-
     const getTargetHostels = (selection) => {
         if (selection === 'ALL') return config?.hostels || DEFAULT_HOSTELS;
         if (selection.startsWith('GROUP:')) {
@@ -1411,7 +1388,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     }
 
     const checkMaintenanceStatus = () => {
-        if (!config) return { ratingsNeeded: false, proofsNeeded: false };
+        if (!config) return { ratingsNeeded: false, proofsNeeded: false, checklistsNeeded: false };
 
         const now = new Date();
         const year = now.getFullYear();
@@ -1426,6 +1403,21 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const startOfThisMonth = new Date(year, month, 1);
         if (!lastRatingsReset || lastRatingsReset < startOfThisMonth) {
             ratingsNeeded = true;
+        }
+
+        // PROOFS — due every Sunday only
+        let proofsNeeded = false;
+        const lastProofsReset = maintenance.lastProofsReset
+            ? new Date(maintenance.lastProofsReset)
+            : null;
+        const dayOfWeek = now.getDay();
+        const lastSunday = new Date(now);
+        lastSunday.setDate(now.getDate() - dayOfWeek);
+        lastSunday.setHours(0, 0, 0, 0);
+        if (dayOfWeek === 0) {
+            if (!lastProofsReset || lastProofsReset < lastSunday) {
+                proofsNeeded = true;
+            }
         }
 
         // CHECKLISTS — due on 1st of every month

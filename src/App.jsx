@@ -3,7 +3,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChang
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db, appId, messaging } from './lib/firebase';
 import { getToken } from 'firebase/messaging';
-import { INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS } from './lib/constants';
+import { INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS, WHITELISTED_EMAILS } from './lib/constants';
 import { Toaster, toast } from 'react-hot-toast';
 import { Shield } from 'lucide-react';
 
@@ -215,9 +215,7 @@ const App = () => {
       const isFacultyDomain = email.endsWith('@vitap.ac.in') || email.endsWith('@vit.ac.in');
       const isSuperAdminEmail = superAdminEmails.includes(email) || email === superAdminEmail;
 
-      const WHITELISTED_EMAILS = [
-          'agpram03@gmail.com'
-      ];
+
       const isWhitelisted = WHITELISTED_EMAILS.includes(email);
 
       // RULE 4: Access check
