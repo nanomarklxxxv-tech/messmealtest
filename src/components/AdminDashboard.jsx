@@ -1629,7 +1629,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                 const imageList = data
                     .filter(p => p.imageUrl)
-                    .map(p => `${p.studentName || 'Unknown'} | ${p.registrationId || 'N/A'} | ${p.studyingYear || 'N/A'} | ${p.date} | ${p.mealType} | ${p.imageUrl}`)
+                    .map(p => `${p.studentName || 'Unknown'} | ${p.registrationId || 'N/A'} | ${p.studentId || 'N/A'} | ${p.studyingYear || 'N/A'} | ${p.date} | ${p.mealType} | ${p.imageUrl}`)
                     .join('\n');
                 if (imageList) zip.file(`Proof_Image_URLs_${sundayLabel}.txt`, imageList);
 
