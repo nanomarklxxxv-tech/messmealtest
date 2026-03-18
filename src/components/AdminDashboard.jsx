@@ -1342,6 +1342,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     };
 
     const filteredUsers = usersList.filter(u => {
+        const matchesSearch = !searchQuery || 
+            (u.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (u.email?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (u.registrationId?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (u.hostel?.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        if (!matchesSearch) return false;
+
         if (userFilter === 'revoked') return u.role === 'revoked';
         if (userFilter === 'students') return u.role === 'student';
         if (userFilter === 'faculty') return u.role === 'faculty';
@@ -1496,9 +1504,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     return {
                         id: d.id,
                         registrationId: r.registrationId || '',
+                        studentId: r.studentId || '',
                         studentName: r.studentName || '',
                         email: r.email || '',
                         hostel: r.hostel || '',
+                        studyingYear: r.studyingYear || '',
                         messType: r.messType || '',
                         mealType: r.mealType || '',
                         rating: r.rating || '',
@@ -1571,9 +1581,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     return {
                         id: d.id,
                         registrationId: p.registrationId || '',
+                        studentId: p.studentId || '',
                         studentName: p.studentName || '',
                         email: p.email || '',
                         hostel: p.hostel || '',
+                        studyingYear: p.studyingYear || '',
                         messType: p.messType || '',
                         mealType: p.mealType || p.session || '',
                         date: p.date || '',
@@ -1598,9 +1610,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     data.map(p => ({
                         id: p.id,
                         registrationId: p.registrationId || '',
+                        studentId: p.studentId || '',
                         studentName: p.studentName || '',
                         email: p.email || '',
                         hostel: p.hostel || '',
+                        studyingYear: p.studyingYear || '',
                         messType: p.messType || '',
                         mealType: p.mealType || '',
                         date: p.date || '',
@@ -1615,7 +1629,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                 const imageList = data
                     .filter(p => p.imageUrl)
-                    .map(p => `${p.studentName || 'Unknown'} | ${p.registrationId || 'N/A'} | ${p.date} | ${p.mealType} | ${p.imageUrl}`)
+                    .map(p => `${p.studentName || 'Unknown'} | ${p.registrationId || 'N/A'} | ${p.studyingYear || 'N/A'} | ${p.date} | ${p.mealType} | ${p.imageUrl}`)
                     .join('\n');
                 if (imageList) zip.file(`Proof_Image_URLs_${sundayLabel}.txt`, imageList);
 
@@ -3173,6 +3187,27 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 </Card>
                             );
                         })()}
+
+                        <div className="relative w-full max-w-md mb-6">
+                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                <Search size={18} className="text-zinc-400" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search by name, email, reg ID or hostel..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-11 pr-11 py-3 bg-white dark:bg-[#16162A] border border-zinc-200 dark:border-white/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#2E7D32] dark:focus:ring-[#7C3AED] transition-all shadow-sm"
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                                >
+                                    <X size={18} />
+                                </button>
+                            )}
+                        </div>
 
                         <div className="flex flex-wrap gap-2 mb-6 p-2 bg-white dark:bg-[#16162A] border border-zinc-200 dark:border-white/10 rounded-2xl w-fit shadow-sm">
                             {[
