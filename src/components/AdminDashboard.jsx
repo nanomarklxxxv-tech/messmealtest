@@ -86,7 +86,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [searchQuery, setSearchQuery] = useState('');
     const [userFilter, setUserFilter] = useState('all'); // all, pending, students, faculty, admins
     const [feedbackSubTab, setFeedbackSubTab] = useState('ratings'); // ratings, suggestions
-    const [reportStatusFilter, setReportStatusFilter] = useState('All');
     const [reportFilter, setReportFilter] = useState('all');
     const [selectedImage, setSelectedImage] = useState(null);
 

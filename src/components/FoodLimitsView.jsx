@@ -39,21 +39,34 @@ export const FoodLimitsView = ({ foodLimits, theme = 'orange' }) => {
                     </div>
                 </div>
                 <div className="p-8 md:p-12">
-                    <div className="space-y-4 p-6 md:p-10 rounded-[2rem] bg-amber-500/5 border-2 border-amber-500/10 dark:bg-amber-500/10 dark:border-amber-500/20">
+                    <div className="space-y-4 p-6 md:p-10 rounded-[2rem]
+                        bg-amber-500/5 border-2 border-amber-500/10
+                        dark:bg-amber-500/10 dark:border-amber-500/20">
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="bg-amber-500/20 p-2.5 rounded-xl flex-shrink-0">
-                                <AlertTriangle size={20} className="text-amber-600 dark:text-amber-400" />
+                            <div className="bg-amber-500/20 p-2.5
+                                rounded-xl flex-shrink-0">
+                                <AlertTriangle size={20}
+                                    className="text-amber-600
+                                    dark:text-amber-400" />
                             </div>
-                            <p className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                            <p className="text-xs font-black text-amber-600
+                                dark:text-amber-400 uppercase tracking-widest">
                                 Official Service Instructions
                             </p>
                         </div>
-                        <p className="text-[#0D0D0D] dark:text-[#F0F0F0] text-base md:text-lg font-bold leading-[1.9] whitespace-pre-wrap tracking-tight w-full">
+                        <p className="text-[#0D0D0D] dark:text-[#F0F0F0]
+                            text-base md:text-lg font-bold leading-[1.9]
+                            whitespace-pre-wrap tracking-tight w-full">
                             {foodLimits}
                         </p>
-                        <div className="pt-4 border-t border-amber-500/10 dark:border-amber-500/20">
-                            <p className="text-[11px] font-black text-zinc-400 dark:text-zinc-500 uppercase tracking-widest leading-relaxed">
-                                These instructions must be followed strictly by the caterer. Any deviations should be reported via the feedback section.
+                        <div className="pt-4 border-t border-amber-500/10
+                            dark:border-amber-500/20">
+                            <p className="text-[11px] font-black text-zinc-400
+                                dark:text-zinc-500 uppercase tracking-widest
+                                leading-relaxed">
+                                These instructions must be followed strictly
+                                by the caterer. Any deviations should be
+                                reported via the feedback section.
                             </p>
                         </div>
                     </div>

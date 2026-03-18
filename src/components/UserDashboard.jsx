@@ -462,25 +462,18 @@ Keep the health tip short, practical and encouraging.`;
     const isRatingAllowed = (meal) => {
         const timing = activeTimings[meal];
         if (!timing) return false;
-
-        const todayStr = new Date().toLocaleDateString('en-CA');
-
-        // Future dates are never allowed
+        const todayStr =
+            new Date().toLocaleDateString('en-CA');
         if (selectedDate > todayStr) return false;
-
-        // Previous days are locked
         if (selectedDate < todayStr) return false;
-
-        // Today: open from meal start time until 11:59:59 PM
         if (selectedDate === todayStr) {
             const now = new Date();
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-            const startMinutes = getTimeMinutes(timing.start);
-            // Only lock before meal starts
-            // After meal starts, keep open until midnight
+            const currentMinutes =
+                now.getHours() * 60 + now.getMinutes();
+            const startMinutes =
+                getTimeMinutes(timing.start);
             return currentMinutes >= startMinutes;
         }
-
         return false;
     };
 
@@ -780,29 +773,27 @@ Keep the health tip short, practical and encouraging.`;
                                                     {(() => {
                                                         const timing = activeTimings[meal];
                                                         if (!timing) return null;
-                                                        const todayStr = new Date().toLocaleDateString('en-CA');
+                                                        const todayStr =
+                                                            new Date().toLocaleDateString('en-CA');
                                                         if (selectedDate !== todayStr) return null;
                                                         const now = new Date();
-                                                        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                                                        const currentMinutes =
+                                                            now.getHours() * 60 + now.getMinutes();
                                                         const startMinutes = getTimeMinutes(timing.start);
 
                                                         if (currentMinutes < startMinutes) {
-                                                            // Before meal starts
                                                             return (
                                                                 <span className="bg-white/20 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider">
                                                                     OPENS {timing.start}
                                                                 </span>
                                                             );
-                                                        } else if (currentMinutes >= startMinutes) {
-                                                            // During or after meal - show ONGOING, never CLOSED
-                                                            return (
-                                                                <span className="bg-white/30 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1">
-                                                                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-                                                                    ONGOING
-                                                                </span>
-                                                            );
                                                         }
-                                                        return null;
+                                                        return (
+                                                            <span className="bg-white/30 text-white text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
+                                                                ONGOING
+                                                            </span>
+                                                        );
                                                     })()}
                                                     {mealSubmitted && (
                                                         <span className="bg-white/20 text-white dark:text-black text-[10px] font-black px-3 py-1.5 rounded-full uppercase">
