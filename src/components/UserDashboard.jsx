@@ -20,6 +20,8 @@ import { SuccessModal } from './ui/SuccessModal';
 import { callGemini, getMealStatus, getTimeMinutes, compressImage } from '../lib/utils';
 import { DEFAULT_MEAL_TIMINGS, MEAL_ORDER, DEFAULT_RATING_WINDOW, DEFAULT_TAGLINE, MEAL_ACCENTS } from '../lib/constants';
 import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
+import { CommitteeChecklist } from './CommitteeChecklist';
+import { ClipboardList } from 'lucide-react';
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
@@ -46,6 +48,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [showNotices, setShowNotices] = useState(false);
     const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
+    const [showChecklist, setShowChecklist] = useState(false);
     const isFirstNoticeLoad = React.useRef(true);
 
     // Notification preferences (persisted in localStorage per user)
@@ -236,6 +239,22 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         scheduleMealNotifications({ activeTimings, menu, notifPrefs });
         return () => clearMealNotifTimers();
     }, [menu, activeTimings, notifPrefs, selectedDate]);
+
+    // 6 PM Notification Reminder for Committee
+    useEffect(() => {
+        if (!userData?.committeeRole || systemNotifPermission !== 'granted') return;
+        const checkTime = () => {
+            const now = new Date();
+            if (now.getHours() === 18 && now.getMinutes() === 0) {
+                new Notification('Committee Reminder 📋', {
+                    body: 'Time to complete your daily mess checklist!',
+                    icon: '/pwa.png'
+                });
+            }
+        };
+        const interval = setInterval(checkTime, 60000);
+        return () => clearInterval(interval);
+    }, [userData?.committeeRole, systemNotifPermission]);
 
     // ── Request notification permission once after login (if never asked) ──
     useEffect(() => {
@@ -552,7 +571,20 @@ Keep the health tip short, practical and encouraging.`;
             </header>
 
             <main className="max-w-7xl mx-auto p-4 pb-32">
-                {isPending && (
+                {showChecklist ? (
+                    <div className="animate-fade-in">
+                        <button
+                            onClick={() => setShowChecklist(false)}
+                            className="mb-8 flex items-center gap-2 text-primary
+                                font-bold hover:underline"
+                        >
+                            ← Back to Dashboard
+                        </button>
+                        <CommitteeChecklist user={user} userData={userData} />
+                    </div>
+                ) : (
+                    <>
+                        {isPending && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -1081,6 +1113,27 @@ Keep the health tip short, practical and encouraging.`;
                                     <span className="text-sm font-bold text-dark dark:text-white flex items-center gap-2"><MessageSquare size={18} className="text-primary" /> Report Bug / Feedback</span>
                                 </button>
 
+                                {userData?.committeeRole && (
+                                    <button
+                                        onClick={() => setShowChecklist(true)}
+                                        className="w-full flex items-center justify-between p-4
+                                            bg-primary/5 dark:bg-primary/10 border
+                                            border-primary/20 rounded-2xl
+                                            hover:bg-primary/10 transition-colors shadow-sm"
+                                    >
+                                        <span className="text-sm font-bold text-primary
+                                            flex items-center gap-2">
+                                            <ClipboardList size={18} />
+                                            Mess Committee Checklist
+                                        </span>
+                                        <span className="text-[10px] font-black
+                                            bg-primary text-white dark:text-black
+                                            px-2 py-0.5 rounded-lg uppercase">
+                                            Open
+                                        </span>
+                                    </button>
+                                )}
+
                                 {/* Profile Tagline */}
                                 <div className="text-center py-2 opacity-100">
                                     <p className="text-[10px] font-bold text-black dark:text-white tracking-widest uppercase">
@@ -1309,6 +1362,8 @@ Keep the health tip short, practical and encouraging.`;
                     </div>
                 )}
 
+                    </>
+                )}
             </main>
 
             <nav className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-white dark:bg-[#0D0D0D] border border-[#E4E4E4] dark:border-[#2A2A2A] p-1.5 rounded-pill flex justify-between gap-1 shadow-card-md dark:shadow-card-dark z-50 w-[96%] max-w-sm">

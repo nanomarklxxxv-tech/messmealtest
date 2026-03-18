@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
-import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug } from 'lucide-react';
+import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { toast } from 'react-hot-toast';
@@ -19,7 +19,7 @@ import { ProfileSetupScreen } from './ProfileSetup';
 import { BouncingLogoScreen } from './ui/LoadingScreen';
 import { UnifiedFeedbackModal } from './UnifiedFeedbackModal';
 import { SuccessModal } from './ui/SuccessModal';
-import { DEFAULT_HOSTELS, DEFAULT_MESS_TYPES, MEAL_ORDER, INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS, DEFAULT_TAGLINE, DEFAULT_MEAL_TIMINGS, ALLOWED_DOMAINS, WHITELISTED_EMAILS } from '../lib/constants';
+import { DEFAULT_HOSTELS, DEFAULT_MESS_TYPES, MEAL_ORDER, INITIAL_SUPER_ADMIN_EMAIL, SUPER_ADMIN_EMAILS, DEFAULT_TAGLINE, DEFAULT_MEAL_TIMINGS, ALLOWED_DOMAINS, WHITELISTED_EMAILS, COMMITTEE_ROLES, COMMITTEE_CHECKLISTS } from '../lib/constants';
 
 // Utility for CSV to Menu conversion
 const excelDateToJSDate = (serial) => {
@@ -65,6 +65,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [isLoadingFeedbacks, setIsLoadingFeedbacks] = useState(true);
     const [isLoadingReports, setIsLoadingReports] = useState(true);
     const [isLoadingNotices, setIsLoadingNotices] = useState(true);
+    const [checklistData, setChecklistData] = useState([]);
+    const [isLoadingChecklists, setIsLoadingChecklists] = useState(false);
+    const [missingChecklists, setMissingChecklists] = useState([]);
 
     const averageRatings = useMemo(() => {
         const mealRatings = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
@@ -96,6 +99,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [feedbackDateFilter, setFeedbackDateFilter] = useState('');
     const [feedbackMessTypeFilter, setFeedbackMessTypeFilter] = useState('ALL');
     const [feedbackHostelFilter, setFeedbackHostelFilter] = useState('ALL');
+
+    // Checklist filters state
+    const [checklistDateFilter, setChecklistDateFilter] = useState(new Date().toLocaleDateString('en-CA'));
+    const [checklistCommitteeFilter, setChecklistCommitteeFilter] = useState('all');
+    const [checklistHostelFilter, setChecklistHostelFilter] = useState('ALL');
 
     // Notice state (targeting)
     const [noticeTitle, setNoticeTitle] = useState('');
@@ -276,7 +284,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         return () => unsub();
     }, [user?.uid]);
 
-    // Fetch reports (suggestions/bugs from student/faculty) - REMOVE the tab guard
     useEffect(() => {
         setIsLoadingReports(true);
         const q = query(
@@ -293,6 +300,53 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         });
         return () => unsub();
     }, [user?.uid]);
+
+    // Fetch checklists
+    useEffect(() => {
+        if (activeTab !== 'checklists') return;
+        const fetchChecklists = async () => {
+            setIsLoadingChecklists(true);
+            try {
+                const snap = await getDocs(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'checklists')
+                );
+                const all = snap.docs.map(d => ({
+                    id: d.id,
+                    ...d.data()
+                }));
+                setChecklistData(all);
+
+                // Calculate missing checklists
+                const todayStr = new Date().toLocaleDateString('en-CA');
+                if (checklistDateFilter === todayStr) {
+                    const submitted = all
+                        .filter(c => c.date === todayStr && c.submitted)
+                        .map(c => `${c.committeeRole}_${c.hostel}`);
+                    const hostels = config?.hostels || DEFAULT_HOSTELS;
+                    const missing = [];
+                    Object.keys(COMMITTEE_ROLES).forEach(role => {
+                        hostels.forEach(hostel => {
+                            const key = `${role}_${hostel}`;
+                            if (!submitted.includes(key)) {
+                                missing.push({
+                                    role,
+                                    hostel,
+                                    label: COMMITTEE_ROLES[role]
+                                });
+                            }
+                        });
+                    });
+                    setMissingChecklists(missing);
+                } else {
+                    setMissingChecklists([]);
+                }
+            } catch (e) {
+                console.error('Failed to fetch checklists:', e);
+            }
+            setIsLoadingChecklists(false);
+        };
+        fetchChecklists();
+    }, [activeTab, checklistDateFilter, checklistCommitteeFilter, checklistHostelFilter, config]);
 
     // Update time every minute for greeting
     useEffect(() => {
@@ -451,6 +505,24 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         }
     };
 
+    const assignCommitteeRole = async (userId, role) => {
+        try {
+            await updateDoc(
+                doc(db, 'artifacts', appId, 'users', userId),
+                {
+                    committeeRole: role || null,
+                    updatedAt: serverTimestamp()
+                }
+            );
+            toast.success(role
+                ? `Committee role assigned: ${COMMITTEE_ROLES[role]}`
+                : 'Committee role removed.'
+            );
+        } catch {
+            toast.error('Failed to assign committee role.');
+        }
+    };
+
     const approveUser = async (userId) => {
         try {
             await updateDoc(doc(db, 'artifacts', appId, 'users', userId), { approved: true });
@@ -462,6 +534,140 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             toast.success("User approved!");
         } catch { toast.error("Failed to approve user"); }
     };
+
+    const exportChecklistExcel = () => {
+        const filtered = checklistData.filter(c => {
+            const matchDate = c.date === checklistDateFilter
+                || c.month === checklistDateFilter.slice(0, 7);
+            const matchCommittee =
+                checklistCommitteeFilter === 'all' ||
+                c.committeeRole === checklistCommitteeFilter;
+            const matchHostel =
+                checklistHostelFilter === 'ALL' ||
+                c.hostel === checklistHostelFilter;
+            return matchDate && matchCommittee && matchHostel;
+        });
+
+        const rows = [];
+        filtered.forEach(checklist => {
+            const items = checklist.items || {};
+            Object.entries(items).forEach(([itemId, meals]) => {
+                if (typeof meals === 'object' &&
+                    meals.Breakfast !== undefined) {
+                    ['Breakfast', 'Lunch', 'Dinner'].forEach(
+                        meal => {
+                            const entry = meals[meal] || {};
+                            rows.push({
+                                Date: checklist.date ||
+                                    checklist.month || '',
+                                Hostel: checklist.hostel || '',
+                                Committee:
+                                    COMMITTEE_ROLES[
+                                    checklist.committeeRole
+                                    ] || checklist.committeeRole,
+                                Item: itemId,
+                                Meal: meal,
+                                Status: entry.status || '',
+                                Remarks: entry.remarks || '',
+                                SubmittedBy:
+                                    checklist.submittedBy || '',
+                                Submitted: checklist.submitted
+                                    ? 'Yes' : 'No'
+                            });
+                        }
+                    );
+                } else {
+                    const entry = meals || {};
+                    rows.push({
+                        Date: checklist.date ||
+                            checklist.month || '',
+                        Hostel: checklist.hostel || '',
+                        Committee:
+                            COMMITTEE_ROLES[
+                            checklist.committeeRole
+                            ] || checklist.committeeRole,
+                        Item: itemId,
+                        Meal: 'Monthly',
+                        Status: entry.status || '',
+                        Remarks: entry.remarks || '',
+                        SubmittedBy:
+                            checklist.submittedBy || '',
+                        Submitted: checklist.submitted
+                            ? 'Yes' : 'No'
+                    });
+                }
+            });
+        });
+
+        if (rows.length === 0) {
+            toast.error('No checklist data to export.');
+            return;
+        }
+        exportToExcel(rows,
+            `Checklists_${checklistDateFilter}`);
+        toast.success('Checklist exported!');
+    };
+
+    useEffect(() => {
+        if (!isSuperAdmin) return;
+
+        const generateDailyReport = async () => {
+            const yesterdayDate = new Date();
+            yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+            const yesterdayStr = yesterdayDate.toLocaleDateString('en-CA');
+
+            try {
+                const snap = await getDocs(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'checklists')
+                );
+                const yesterdayChecklists = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .filter(c => c.date === yesterdayStr);
+
+                if (yesterdayChecklists.length === 0) return;
+
+                const totalSubmitted = yesterdayChecklists.filter(c => c.submitted).length;
+                const totalMissing = yesterdayChecklists.filter(c => !c.submitted).length;
+                const totalFailed = yesterdayChecklists.reduce((acc, c) => {
+                    const items = Object.values(c.items || {});
+                    items.forEach(item => {
+                        if (item.Breakfast?.status === '✗'
+                            || item.Lunch?.status === '✗'
+                            || item.Dinner?.status === '✗'
+                            || item.status === '✗') {
+                            acc++;
+                        }
+                    });
+                    return acc;
+                }, 0);
+
+                await setDoc(
+                    doc(db, 'artifacts', appId, 'public', 'data', 'checklist_reports', yesterdayStr),
+                    {
+                        date: yesterdayStr,
+                        totalSubmitted,
+                        totalMissing,
+                        totalFailed,
+                        generatedAt: serverTimestamp(),
+                        checklists: yesterdayChecklists
+                    },
+                    { merge: true }
+                );
+            } catch (e) {
+                console.error('Failed to generate daily report:', e);
+            }
+        };
+
+        const checkMidnight = () => {
+            const now = new Date();
+            if (now.getHours() === 0 && now.getMinutes() === 0) {
+                generateDailyReport();
+            }
+        };
+
+        const interval = setInterval(checkMidnight, 60000);
+        return () => clearInterval(interval);
+    }, [isSuperAdmin]);
 
     const revokeUser = (userId) => {
         setConfirmModal({
@@ -1170,6 +1376,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         { id: 'notices', label: 'Notices', icon: Megaphone },
         { id: 'feedback', label: 'Feedback', icon: Star },
         { id: 'reports', label: 'Bugs & Suggestions', icon: Bug },
+        { id: 'checklists', label: 'Checklists', icon: ClipboardList },
         { id: 'proofs', label: 'Proofs Gallery', icon: ImageIcon },
         { id: 'users', label: 'User Management', icon: Users },
         { id: 'settings', label: 'Settings', icon: Settings },
@@ -2410,6 +2617,344 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     </div>
                 );
 
+            case 'checklists': {
+                const todayStr = new Date().toLocaleDateString('en-CA');
+                const filteredChecklists = checklistData.filter(c => {
+                    const matchDate =
+                        c.date === checklistDateFilter ||
+                        c.month === checklistDateFilter.slice(0, 7);
+                    const matchCommittee =
+                        checklistCommitteeFilter === 'all' ||
+                        c.committeeRole === checklistCommitteeFilter;
+                    const matchHostel =
+                        checklistHostelFilter === 'ALL' ||
+                        c.hostel === checklistHostelFilter;
+                    return matchDate && matchCommittee && matchHostel;
+                });
+
+                return (
+                    <div className="space-y-6 max-w-7xl animate-fade-in">
+
+                        {/* Missing Checklists Alert */}
+                        {missingChecklists.length > 0 &&
+                            checklistDateFilter === todayStr && (
+                                <div className="bg-red-50 dark:bg-red-900/20
+                      border border-red-200 dark:border-red-500/30
+                      rounded-2xl p-5">
+                                    <div className="flex items-center gap-3
+                          mb-3">
+                                        <AlertTriangle size={20}
+                                            className="text-red-500
+                              flex-shrink-0" />
+                                        <h3 className="font-black text-red-600
+                              dark:text-red-400 text-sm uppercase
+                              tracking-widest">
+                                            {missingChecklists.length} Checklist
+                                            {missingChecklists.length > 1
+                                                ? 's' : ''} Not Submitted Today
+                                        </h3>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {missingChecklists.map((m, i) => (
+                                            <span key={i}
+                                                className="text-[11px] font-bold
+                                  text-red-600 dark:text-red-400
+                                  bg-red-100 dark:bg-red-900/30
+                                  px-3 py-1.5 rounded-xl border
+                                  border-red-200
+                                  dark:border-red-500/30">
+                                                {m.label} · {m.hostel}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                        {/* Filter Bar */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2
+                  lg:grid-cols-4 gap-4 bg-white dark:bg-[#16162A]
+                  p-5 rounded-3xl border border-zinc-200
+                  dark:border-white/10 shadow-sm">
+                            <div>
+                                <label className="block text-[10px]
+                          font-black text-zinc-500 uppercase
+                          tracking-widest mb-2">
+                                    Date
+                                </label>
+                                <input
+                                    type="date"
+                                    value={checklistDateFilter}
+                                    onChange={(e) =>
+                                        setChecklistDateFilter(
+                                            e.target.value
+                                        )
+                                    }
+                                    className="w-full p-3 bg-zinc-50
+                              dark:bg-black/40 border
+                              border-zinc-200 dark:border-white/10
+                              rounded-xl text-sm outline-none
+                              focus:border-primary
+                              text-zinc-900 dark:text-white"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px]
+                          font-black text-zinc-500 uppercase
+                          tracking-widest mb-2">
+                                    Committee
+                                </label>
+                                <select
+                                    value={checklistCommitteeFilter}
+                                    onChange={(e) =>
+                                        setChecklistCommitteeFilter(
+                                            e.target.value
+                                        )
+                                    }
+                                    className="w-full p-3 bg-zinc-50
+                              dark:bg-black/40 border
+                              border-zinc-200 dark:border-white/10
+                              rounded-xl text-sm outline-none
+                              focus:border-primary
+                              text-zinc-900 dark:text-white"
+                                >
+                                    <option value="all">
+                                        All Committees
+                                    </option>
+                                    {Object.entries(COMMITTEE_ROLES)
+                                        .map(([key, label]) => (
+                                            <option key={key} value={key}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            <Select
+                                label="Hostel"
+                                value={checklistHostelFilter}
+                                onChange={setChecklistHostelFilter}
+                                options={getHostelOptions(true)}
+                            />
+
+                            <div className="flex items-end gap-2">
+                                <Button
+                                    onClick={exportChecklistExcel}
+                                    variant="secondary"
+                                    className="flex-1 py-3 text-xs
+                              font-black uppercase tracking-widest
+                              bg-zinc-100 dark:bg-white/10
+                              text-zinc-900 dark:text-white
+                              border-zinc-200 dark:border-white/20"
+                                >
+                                    <FileSpreadsheet size={14}
+                                        className="mr-2" />
+                                    Export Excel
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Checklist Cards */}
+                        {isLoadingChecklists ? (
+                            <div className="grid gap-4 sm:grid-cols-2
+                      lg:grid-cols-3">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className="h-48 w-full
+                              bg-zinc-100 dark:bg-white/5
+                              animate-pulse rounded-3xl" />
+                                ))}
+                            </div>
+                        ) : filteredChecklists.length === 0 ? (
+                            <div className="text-center py-20 border-2
+                      border-dashed border-zinc-200
+                      dark:border-white/5 rounded-[40px]">
+                                <ClipboardList size={40}
+                                    className="mx-auto text-zinc-300
+                          mb-4 opacity-50" />
+                                <p className="text-sm font-black
+                          text-zinc-400 uppercase
+                          tracking-[0.2em]">
+                                    No checklists found
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid gap-6 sm:grid-cols-2
+                      lg:grid-cols-3">
+                                {filteredChecklists.map(checklist => {
+                                    const items =
+                                        checklist.items || {};
+                                    const allItems = Object.values(
+                                        items
+                                    );
+                                    const totalFields =
+                                        allItems.length;
+                                    const filledFields =
+                                        allItems.filter(item => {
+                                            if (item.Breakfast) {
+                                                return item.Breakfast
+                                                    .status;
+                                            }
+                                            return item.status;
+                                        }).length;
+                                    const failedItems =
+                                        allItems.filter(item => {
+                                            if (item.Breakfast) {
+                                                return (
+                                                    item.Breakfast
+                                                        .status === '✗' ||
+                                                    item.Lunch
+                                                        ?.status === '✗' ||
+                                                    item.Dinner
+                                                        ?.status === '✗'
+                                                );
+                                            }
+                                            return item.status === '✗';
+                                        }).length;
+
+                                    return (
+                                        <Card key={checklist.id}
+                                            className="flex flex-col
+                                  bg-white dark:bg-[#16162A]
+                                  border border-zinc-200
+                                  dark:border-white/10 shadow-sm">
+                                            <div className="flex
+                                      justify-between
+                                      items-start mb-4">
+                                                <div>
+                                                    <p className="font-black
+                                              text-dark
+                                              dark:text-white
+                                              text-sm">
+                                                        {COMMITTEE_ROLES[
+                                                            checklist
+                                                                .committeeRole
+                                                        ] ||
+                                                            checklist
+                                                                .committeeRole}
+                                                    </p>
+                                                    <p className="text-xs
+                                              font-bold
+                                              text-zinc-400 mt-1">
+                                                        {checklist.hostel}
+                                                        {' · '}
+                                                        {checklist.date ||
+                                                            checklist.month}
+                                                    </p>
+                                                </div>
+                                                <span className={`text-[10px]
+                                          font-black px-3 py-1.5
+                                          rounded-full uppercase
+                                          tracking-wider
+                                          ${checklist.submitted
+                                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+                                                        : 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
+                                                    }`}>
+                                                    {checklist.submitted
+                                                        ? '✓ Submitted'
+                                                        : '⏳ Pending'}
+                                                </span>
+                                            </div>
+
+                                            {/* Progress bar */}
+                                            <div className="mb-4">
+                                                <div className="flex
+                                          justify-between
+                                          items-center mb-1">
+                                                    <span className="text-[10px]
+                                              font-black text-zinc-400
+                                              uppercase
+                                              tracking-widest">
+                                                        Completion
+                                                    </span>
+                                                    <span className="text-[10px]
+                                              font-black text-zinc-500">
+                                                        {filledFields}/
+                                                        {totalFields}
+                                                    </span>
+                                                </div>
+                                                <div className="w-full h-2
+                                          bg-zinc-100
+                                          dark:bg-white/10
+                                          rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full
+                                              rounded-full
+                                              bg-primary
+                                              transition-all"
+                                                        style={{
+                                                            width: totalFields
+                                                                ? `${(filledFields / totalFields) * 100}%`
+                                                                : '0%'
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {failedItems > 0 && (
+                                                <div className="flex
+                                          items-center gap-2
+                                          mb-4 p-3 bg-red-50
+                                          dark:bg-red-900/10
+                                          rounded-xl border
+                                          border-red-100
+                                          dark:border-red-500/20">
+                                                    <XCircle size={14}
+                                                        className="text-red-500
+                                              flex-shrink-0" />
+                                                    <p className="text-xs
+                                              font-bold text-red-600
+                                              dark:text-red-400">
+                                                        {failedItems} item
+                                                        {failedItems > 1
+                                                            ? 's' : ''} marked
+                                                        as ✗
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {checklist.submittedBy && (
+                                                <p className="text-[11px]
+                                          font-bold text-zinc-400
+                                          mt-auto">
+                                                    Submitted by{' '}
+                                                    {checklist.submittedBy}
+                                                </p>
+                                            )}
+
+                                            {checklist.lastEditedBy &&
+                                                !checklist.submitted && (
+                                                    <p className="text-[11px]
+                                          font-bold text-zinc-400
+                                          mt-auto">
+                                                        Last edited by{' '}
+                                                        {checklist.lastEditedBy}
+                                                        {checklist.lastEditedAt
+                                                            && (
+                                                                <span className="opacity-60">
+                                                                    {' · '}
+                                                                    {new Date(
+                                                                        checklist
+                                                                            .lastEditedAt
+                                                                    ).toLocaleTimeString(
+                                                                        [],
+                                                                        {
+                                                                            hour: '2-digit',
+                                                                            minute: '2-digit'
+                                                                        }
+                                                                    )}
+                                                                </span>
+                                                            )}
+                                                    </p>
+                                                )}
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
             case 'proofs':
                 return (
                     <div className="space-y-6 max-w-7xl">
@@ -2696,6 +3241,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest whitespace-nowrap">Name / Email</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Role</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Location</th>
+                                            <th className="p-5 text-xs font-bold text-zinc-400
+                                                uppercase tracking-widest">
+                                                Committee
+                                            </th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest text-right">Actions</th>
                                         </tr>
@@ -2716,6 +3265,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                     <span className="text-sm font-semibold text-zinc-300">
                                                         {u.hostel ? `${u.hostel} (${u.messType})` : '-'}
                                                     </span>
+                                                </td>
+                                                <td className="p-5">
+                                                    {isSuperAdmin ? (
+                                                        <select
+                                                            value={u.committeeRole || ''}
+                                                            onChange={(e) =>
+                                                                assignCommitteeRole(u.id, e.target.value)
+                                                            }
+                                                            className="text-xs font-bold p-2 rounded-xl
+                                                                bg-zinc-100 dark:bg-black/40 border
+                                                                border-zinc-200 dark:border-white/10
+                                                                text-zinc-700 dark:text-white outline-none
+                                                                cursor-pointer"
+                                                        >
+                                                            <option value="">None</option>
+                                                            {Object.entries(COMMITTEE_ROLES).map(
+                                                                ([key, label]) => (
+                                                                    <option key={key} value={key}>
+                                                                        {label}
+                                                                    </option>
+                                                                )
+                                                            )}
+                                                        </select>
+                                                    ) : (
+                                                        <span className="text-xs font-bold text-zinc-400">
+                                                            {u.committeeRole
+                                                                ? COMMITTEE_ROLES[u.committeeRole]
+                                                                : '—'}
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="p-5">
                                                     <Badge variant={u.approved ? 'success' : 'warning'}>
