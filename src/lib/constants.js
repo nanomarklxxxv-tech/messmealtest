@@ -60,108 +60,361 @@ export const COMMITTEE_ROLES = {
 };
 
 export const COMMITTEE_CHECKLISTS = {
+
     menu_daily: {
         monthly: [
-            { id: 'M-1', text: 'Approved monthly menu displayed in mess' },
-            { id: 'M-2', text: 'Menu of the day followed by caterer' },
-            { id: 'M-3', text: 'Variety and balanced food items provided' },
-            { id: 'M-4', text: 'Weekly/special menu items served as scheduled' },
-            { id: 'M-5', text: 'Student feedback collected before preparing menu' },
-            { id: 'M-6', text: 'Menu improvement suggestions reported' },
-            { id: 'M-7', text: 'Adequate variety across the week (avoid repetition)' },
-            { id: 'M-8', text: 'Inclusion of regional food varieties' },
-            { id: 'M-9', text: 'Menu includes protein sources (dal, pulses, eggs, paneer, etc.)' },
-            { id: 'M-10', text: 'Limited deep fried and oily food items' },
-            { id: 'M-11', text: 'Popular student food choices considered' },
-            { id: 'M-12', text: 'Seasonal vegetables included in the menu' }
+            {
+                id: 'M-1',
+                text: 'Approved monthly menu displayed in mess'
+            },
+            {
+                id: 'M-2',
+                text: 'Menu of the day followed by caterer'
+            },
+            {
+                id: 'M-3',
+                text: 'Variety and balanced food items provided'
+            },
+            {
+                id: 'M-4',
+                text: 'Weekly/special menu items served as scheduled'
+            },
+            {
+                id: 'M-5',
+                text: 'Student feedback collected before preparing menu'
+            },
+            {
+                id: 'M-6',
+                text: 'Menu improvement suggestions reported'
+            },
+            {
+                id: 'M-7',
+                text: 'Adequate variety across the week (avoid repetition)'
+            },
+            {
+                id: 'M-8',
+                text: 'Inclusion of regional food varieties'
+            },
+            {
+                id: 'M-9',
+                text: 'Menu includes protein sources (dal, pulses, eggs, paneer, etc.)'
+            },
+            {
+                id: 'M-10',
+                text: 'Limited deep fried and oily food items'
+            },
+            {
+                id: 'M-11',
+                text: 'Popular student food choices considered'
+            },
+            {
+                id: 'M-12',
+                text: 'Seasonal vegetables included in the menu'
+            }
         ],
         daily: [
-            { id: 'MM-1', text: 'Menu of the day displayed clearly in the mess' },
-            { id: 'MM-2', text: 'Food items served exactly as per the approved menu' },
-            { id: 'MM-3', text: 'Proper serving of special items (chicken, paneer, egg, milk, sweet etc.)' },
-            { id: 'MM-4', text: 'Adequate availability of drinking water during meals' },
-            { id: 'MM-5', text: 'Fruits/Salads provided separately as per menu' },
-            { id: 'MM-6', text: 'Fresh chutney/Pickle provided' },
-            { id: 'MM-7', text: 'No excessive oil or salt in the food' },
-            { id: 'MM-8', text: 'Any change in the menu item kept in the notice board' },
-            { id: 'MM-9', text: 'Hot Jeera water is provided in the lunch and dinner' },
-            { id: 'MM-10', text: 'Hot Kichidi is provided for sick students' },
-            { id: 'MM-11', text: 'QR codes for taking feedback from students is displayed clearly in the mess' },
-            { id: 'MM-12', text: 'Night canteen menu is provided as per the approved menu' },
-            { id: 'MM-13', text: 'Spicy Levels (Moderate/acceptable)' }
+            {
+                id: 'MM-1',
+                text: 'Menu of the day displayed clearly in the mess'
+            },
+            {
+                id: 'MM-2',
+                text: 'Food items served exactly as per the approved menu'
+            },
+            {
+                id: 'MM-3',
+                text: 'Proper serving of special items (chicken, paneer, egg, milk, sweet etc.)'
+            },
+            {
+                id: 'MM-4',
+                text: 'Adequate availability of drinking water during meals'
+            },
+            {
+                id: 'MM-5',
+                text: 'Fruits/Salads provided separately as per menu'
+            },
+            {
+                id: 'MM-6',
+                text: 'Fresh chutney/Pickle provided'
+            },
+            {
+                id: 'MM-7',
+                text: 'No excessive oil or salt in the food'
+            },
+            {
+                id: 'MM-8',
+                text: 'Any change in the menu item kept in the notice board'
+            },
+            {
+                id: 'MM-9',
+                text: 'Hot Jeera water is provided in the lunch and dinner'
+            },
+            {
+                id: 'MM-10',
+                text: 'Hot Kichidi is provided for sick students'
+            },
+            {
+                id: 'MM-11',
+                text: 'QR codes for taking feedback from students is displayed clearly in the mess'
+            },
+            {
+                id: 'MM-12',
+                text: 'Night canteen menu is provided as per the approved menu'
+            },
+            {
+                id: 'MM-13',
+                text: 'Spicy levels are moderate and acceptable'
+            }
         ]
     },
+
     quality_hygiene: {
         daily: [
-            { id: 'QH-1', text: 'Kitchen and dining hall cleanliness maintained' },
-            { id: 'QH-2', text: 'Kitchen staff follow personal hygiene (cap, gloves, uniform) while handling food' },
-            { id: 'QH-3', text: 'Tobacco use, gum-chewing, and eating food not identified in food-handling areas' },
-            { id: 'QH-4', text: 'Sorting of fruits, vegetables and raw materials done' },
-            { id: 'QH-5', text: 'Food is fresh and properly cooked' },
-            { id: 'QH-6', text: 'Raw materials stored properly' },
-            { id: 'QH-7', text: 'Utensils and plates cleaned properly' },
-            { id: 'QH-8', text: 'Drinking water and handwash areas maintained under hygienic conditions' },
-            { id: 'QH-9', text: 'Milk, eggs and other perishables within expiry date' },
-            { id: 'QH-10', text: 'Groceries are of good quality' },
-            { id: 'QH-11', text: 'No pests (rats, cockroaches, flies) found in the kitchen' },
-            { id: 'QH-12', text: 'Kitchen waste bins covered' },
-            { id: 'QH-13', text: 'Dining tables cleaned on time throughout the runtime of mess' },
-            { id: 'QH-14', text: 'Plates, glasses and spoons properly washed' },
-            { id: 'QH-15', text: 'No artificial colors, MSG, cooking soda used' }
+            {
+                id: 'QH-1',
+                text: 'Kitchen and dining hall cleanliness maintained'
+            },
+            {
+                id: 'QH-2',
+                text: 'Kitchen staff follow personal hygiene (cap, gloves, clean uniform) while handling food'
+            },
+            {
+                id: 'QH-3',
+                text: 'Tobacco use, gum-chewing, and eating food not identified by any kitchen staff in food-handling areas'
+            },
+            {
+                id: 'QH-4',
+                text: 'Sorting of fruits, vegetables and raw materials done properly'
+            },
+            {
+                id: 'QH-5',
+                text: 'Food is fresh and properly cooked'
+            },
+            {
+                id: 'QH-6',
+                text: 'Raw materials stored properly'
+            },
+            {
+                id: 'QH-7',
+                text: 'Utensils and plates cleaned properly'
+            },
+            {
+                id: 'QH-8',
+                text: 'Drinking water and handwash areas maintained under hygienic conditions throughout mess runtime'
+            },
+            {
+                id: 'QH-9',
+                text: 'Milk, eggs and other perishables are within expiry date'
+            },
+            {
+                id: 'QH-10',
+                text: 'Groceries are of good quality'
+            },
+            {
+                id: 'QH-11',
+                text: 'No pests (rats, cockroaches, or flies) found in kitchen — measures to prevent rodent infestation in place'
+            },
+            {
+                id: 'QH-12',
+                text: 'Kitchen waste bins covered'
+            },
+            {
+                id: 'QH-13',
+                text: 'Dining tables cleaned on time throughout the runtime of mess'
+            },
+            {
+                id: 'QH-14',
+                text: 'Plates, glasses and spoons properly washed'
+            },
+            {
+                id: 'QH-15',
+                text: 'No artificial colors, MSG (Aji-no-moto), cooking soda, or chilli powder without artificial colors used'
+            },
+            {
+                id: 'QH-16',
+                text: 'All Bain-maries are in working condition including common dishes'
+            },
+            {
+                id: 'QH-17',
+                text: 'Egg shell collection bins arranged'
+            }
         ]
     },
+
     feedback_grievance: {
         daily: [
-            { id: 'FG-1', text: 'Feedback collected from students during meal time' },
-            { id: 'FG-2', text: 'Feedback/grievance register maintained' },
-            { id: 'FG-3', text: 'Repeated complaints identified' },
-            { id: 'FG-4', text: 'Complaints communicated to Mess Chairman' },
-            { id: 'FG-5', text: 'Follow-up taken for grievance resolution' },
-            { id: 'FG-6', text: 'Students satisfied with taste and quality of food' },
-            { id: 'FG-7', text: 'Students satisfied with menu variety' },
-            { id: 'FG-8', text: 'Minor issues communicated to Mess Manager/Caterer' }
+            {
+                id: 'FG-1',
+                text: 'Feedback collected from students during meal time'
+            },
+            {
+                id: 'FG-2',
+                text: 'Feedback/grievance register maintained'
+            },
+            {
+                id: 'FG-3',
+                text: 'Repeated complaints identified'
+            },
+            {
+                id: 'FG-4',
+                text: 'Complaints communicated to Mess Chairman'
+            },
+            {
+                id: 'FG-5',
+                text: 'Follow-up taken for grievance resolution'
+            },
+            {
+                id: 'FG-6',
+                text: 'Students satisfied with taste and quality of food'
+            },
+            {
+                id: 'FG-7',
+                text: 'Student grievances followed up regularly'
+            },
+            {
+                id: 'FG-8',
+                text: 'Students satisfied with menu variety'
+            },
+            {
+                id: 'FG-9',
+                text: 'Minor issues communicated to Mess Manager/Caterer'
+            }
         ]
     },
+
     mess_chairman: {
         daily: [
-            { id: 'MC-1', text: 'Coordination with all mess committees done' },
-            { id: 'MC-2', text: 'Approved menu implemented properly' },
-            { id: 'MC-3', text: 'Food quality and hygiene monitored' },
-            { id: 'MC-4', text: 'Committee reports reviewed' },
-            { id: 'MC-5', text: 'Issues with caterer/supervisor resolved' },
-            { id: 'MC-6', text: 'Monthly report submitted to Food Warden' }
+            {
+                id: 'MC-1',
+                text: 'Coordination with all mess committees done'
+            },
+            {
+                id: 'MC-2',
+                text: 'Approved menu implemented properly'
+            },
+            {
+                id: 'MC-3',
+                text: 'Food quality and hygiene monitored'
+            },
+            {
+                id: 'MC-4',
+                text: 'Committee reports reviewed'
+            },
+            {
+                id: 'MC-5',
+                text: 'Issues with caterer/supervisor resolved'
+            },
+            {
+                id: 'MC-6',
+                text: 'Monthly report submitted to Food Warden'
+            }
         ]
     },
+
     block_supervisor: {
         daily: [
-            { id: 'BS-1', text: 'Mess opened and closed on time' },
-            { id: 'BS-2', text: 'Food preparation started on time' },
-            { id: 'BS-3', text: 'Dining hall and kitchen cleanliness monitored' },
-            { id: 'BS-4', text: 'Operational issues reported' },
-            { id: 'BS-5', text: 'Testing of sample before serving to the students' },
-            { id: 'BS-6', text: 'Monitoring the records of the oil usages in the kitchen' },
-            { id: 'BS-7', text: 'Health issues raised if any monitored and reported promptly' },
-            { id: 'BS-8', text: 'Cooking oil not reused more than 3 times' },
-            { id: 'BS-9', text: 'RO water gets tested for every 10 days' },
-            { id: 'BS-10', text: 'Waste disposed regularly' },
-            { id: 'BS-11', text: 'Daily production, usage and wastage records maintained' },
-            { id: 'BS-12', text: 'Internal audit records maintained' },
-            { id: 'BS-13', text: 'Water cooler deep cleaned alternative days' },
-            { id: 'BS-14', text: 'Monitoring of the used oil collection' },
-            { id: 'BS-15', text: 'Prevention of used oil entering to the kitchen drain' },
-            { id: 'BS-16', text: 'Drain covers installed and drains cleaned regularly' }
+            {
+                id: 'BS-1',
+                text: 'Mess opened and closed on time'
+            },
+            {
+                id: 'BS-2',
+                text: 'Food preparation started on time'
+            },
+            {
+                id: 'BS-3',
+                text: 'Dining hall and kitchen cleanliness monitored'
+            },
+            {
+                id: 'BS-4',
+                text: 'Operational issues reported'
+            },
+            {
+                id: 'BS-5',
+                text: 'Testing of food sample before serving to students'
+            },
+            {
+                id: 'BS-6',
+                text: 'Monitoring the records of oil usage in the kitchen'
+            },
+            {
+                id: 'BS-7',
+                text: 'Health issues raised if any — monitored and reported promptly'
+            },
+            {
+                id: 'BS-8',
+                text: 'Cooking oil not reused more than 3 times'
+            },
+            {
+                id: 'BS-9',
+                text: 'RO water gets tested every 10 days'
+            },
+            {
+                id: 'BS-10',
+                text: 'Waste disposed regularly'
+            },
+            {
+                id: 'BS-11',
+                text: 'Daily production, usage and wastage records maintained'
+            },
+            {
+                id: 'BS-12',
+                text: 'Internal audit records maintained'
+            },
+            {
+                id: 'BS-13',
+                text: 'Water cooler deep cleaned on alternate days'
+            },
+            {
+                id: 'BS-14',
+                text: 'Monitoring of used oil collection'
+            },
+            {
+                id: 'BS-15',
+                text: 'Prevention of used oil entering the kitchen drain'
+            },
+            {
+                id: 'BS-16',
+                text: 'Drain covers installed and drains cleaned regularly'
+            }
         ]
     },
+
     mess_attendant: {
         daily: [
-            { id: 'A-1', text: 'Mess staff supervised during service' },
-            { id: 'A-2', text: 'Queue discipline maintained' },
-            { id: 'A-3', text: 'Sufficient quantity of food being served' },
-            { id: 'A-4', text: 'Observations shared with the block supervisors' },
-            { id: 'A-5', text: 'Food wastage transported properly' },
-            { id: 'A-6', text: 'Food items protected from dust, moisture and pests' },
-            { id: 'A-7', text: 'Water purification system functioning properly' },
-            { id: 'A-8', text: 'Waste bins covered and cleaned regularly' }
+            {
+                id: 'A-1',
+                text: 'Mess staff supervised during service'
+            },
+            {
+                id: 'A-2',
+                text: 'Queue discipline maintained'
+            },
+            {
+                id: 'A-3',
+                text: 'Sufficient quantity of food being served'
+            },
+            {
+                id: 'A-4',
+                text: 'Observations shared with the block supervisors'
+            },
+            {
+                id: 'A-5',
+                text: 'Food wastage transported properly'
+            },
+            {
+                id: 'A-6',
+                text: 'Food items protected from dust, moisture and pests'
+            },
+            {
+                id: 'A-7',
+                text: 'Water purification system functioning properly'
+            },
+            {
+                id: 'A-8',
+                text: 'Waste bins covered and cleaned regularly'
+            }
         ]
     }
+
 };
