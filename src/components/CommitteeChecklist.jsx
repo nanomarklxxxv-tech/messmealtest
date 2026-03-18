@@ -6,7 +6,7 @@ import {
 import { COMMITTEE_CHECKLISTS, COMMITTEE_ROLES } from
     '../lib/constants';
 import { CheckCircle2, XCircle, Clock, Save,
-    ClipboardList } from 'lucide-react';
+    ClipboardList, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
@@ -37,6 +37,33 @@ export const CommitteeChecklist = ({ user, userData }) => {
         `${committeeRole}_${hostel}_${todayStr}`;
     const monthlyDocId =
         `${committeeRole}_${hostel}_monthly_${currentMonth}`;
+
+    const [currentTime, setCurrentTime] = useState(
+        new Date()
+    );
+
+    const isDailyLocked = (() => {
+        const now = new Date();
+        const todayStr =
+            new Date().toLocaleDateString('en-CA');
+        if (todayStr > todayStr) return true;
+        const totalSeconds =
+            now.getHours() * 3600 +
+            now.getMinutes() * 60 +
+            now.getSeconds();
+        return totalSeconds >= 86399;
+    })();
+
+    const isMonthlyLocked = monthlySubmitted &&
+        (() => {
+            const now = new Date();
+            const totalSeconds =
+                now.getHours() * 3600 +
+                now.getMinutes() * 60 +
+                now.getSeconds();
+            return totalSeconds >= 86399;
+        })();
+
 
     // Real-time listener for daily checklist
     useEffect(() => {
@@ -70,11 +97,105 @@ export const CommitteeChecklist = ({ user, userData }) => {
         return () => unsub();
     }, [committeeRole, hostel, currentMonth]);
 
+    useEffect(() => {
+        const checkAutoLock = async () => {
+            const now = new Date();
+            const totalSeconds =
+                now.getHours() * 3600 +
+                now.getMinutes() * 60 +
+                now.getSeconds();
+
+            // At exactly 11:59:59 PM auto-submit
+            // whatever is filled
+            if (totalSeconds >= 86399) {
+                const todayStr =
+                    new Date().toLocaleDateString('en-CA');
+
+                // Auto-submit daily checklist
+                if (checklist?.daily && !isDailyLocked) {
+                    const ref = doc(db, 'artifacts', appId,
+                        'public', 'data', 'checklists',
+                        dailyDocId);
+                    try {
+                        await setDoc(ref, {
+                            submitted: true,
+                            autoSubmitted: true,
+                            submittedBy:
+                                userData?.name ||
+                                user?.email ||
+                                'Auto-submitted',
+                            submittedAt: serverTimestamp()
+                        }, { merge: true });
+                    } catch (e) {
+                        console.error(
+                            'Auto-submit failed:', e
+                        );
+                    }
+                }
+
+                // Auto-submit monthly checklist
+                // (only menu_daily committee)
+                if (checklist?.monthly && !isMonthlyLocked) {
+                    const now = new Date();
+                    const lastDayOfMonth = new Date(
+                        now.getFullYear(),
+                        now.getMonth() + 1,
+                        0
+                    ).getDate();
+
+                    // Auto-submit monthly on last day
+                    // of the month at 11:59:59 PM
+                    if (now.getDate() === lastDayOfMonth) {
+                        const ref = doc(db, 'artifacts',
+                            appId, 'public', 'data',
+                            'checklists', monthlyDocId);
+                        try {
+                            await setDoc(ref, {
+                                submitted: true,
+                                autoSubmitted: true,
+                                submittedBy:
+                                    userData?.name ||
+                                    user?.email ||
+                                    'Auto-submitted',
+                                submittedAt: serverTimestamp()
+                            }, { merge: true });
+                        } catch (e) {
+                            console.error(
+                                'Monthly auto-submit failed:',
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        };
+
+        // Check every second near midnight
+        // (only run checks after 11 PM to save resources)
+        const now = new Date();
+        if (now.getHours() >= 23) {
+            const interval = setInterval(
+                checkAutoLock, 1000
+            );
+            return () => clearInterval(interval);
+        }
+    }, [userData, user, dailyDocId, monthlyDocId,
+        checklist]);
+
+    useEffect(() => {
+        const now = new Date();
+        if (now.getHours() < 23) return;
+        const interval = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
     // Auto-save field change to Firestore immediately
     const updateDailyField = async (
         itemId, meal, field, value
     ) => {
-        if (dailySubmitted) return;
+        if (isDailyLocked) return;
         const ref = doc(db, 'artifacts', appId,
             'public', 'data', 'checklists', dailyDocId);
         const key = `items.${itemId}.${meal}.${field}`;
@@ -98,7 +219,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
     };
 
     const updateMonthlyField = async (itemId, field, value) => {
-        if (monthlySubmitted) return;
+        if (isMonthlyLocked) return;
         const ref = doc(db, 'artifacts', appId,
             'public', 'data', 'checklists', monthlyDocId);
         const key = `items.${itemId}.${field}`;
@@ -207,6 +328,29 @@ export const CommitteeChecklist = ({ user, userData }) => {
     return (
         <div className="space-y-8 pb-24">
 
+            {/* Auto-lock Countdown Banner */}
+            {(() => {
+                const now = currentTime;
+                if (now.getHours() < 23) return null;
+                const minutesLeft = 59 - now.getMinutes();
+                const secondsLeft = 59 - now.getSeconds();
+                return (
+                    <div className="w-full bg-red-500/10 border
+                        border-red-500/30 rounded-2xl p-4 flex
+                        items-center gap-3 mb-4">
+                        <AlertTriangle size={18}
+                            className="text-red-500 flex-shrink-0" />
+                        <p className="text-sm font-bold text-red-600
+                            dark:text-red-400">
+                            ⚠ Checklist auto-locks in{' '}
+                            {minutesLeft}m {secondsLeft}s.
+                            Any unfilled items will be
+                            auto-submitted as is.
+                        </p>
+                    </div>
+                );
+            })()}
+
             {/* Header */}
             <div className="flex items-center
                 justify-between flex-wrap gap-4">
@@ -264,7 +408,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                                 bg-emerald-50 dark:bg-emerald-900/20
                                 px-3 py-1.5 rounded-full uppercase
                                 tracking-wider">
-                                ✓ Submitted
+                                ✓ Submitted — Editable until 11:59 PM
                             </span>
                         )}
                     </div>
@@ -273,7 +417,19 @@ export const CommitteeChecklist = ({ user, userData }) => {
                         {checklist.monthly.map(item => {
                             const entry =
                                 monthlyData[item.id] || {};
-                            const isLocked = monthlySubmitted;
+                            const now = new Date();
+                            const isAfterMidnight =
+                                now.getHours() === 23 &&
+                                now.getMinutes() === 59 &&
+                                now.getSeconds() >= 59;
+                            const isPastToday = (() => {
+                                const todayStr =
+                                    new Date().toLocaleDateString('en-CA');
+                                return checklist.date
+                                    ? checklist.date < todayStr
+                                    : false;
+                            })();
+                            const isLocked = isAfterMidnight || isPastToday;
                             return (
                                 <div key={item.id}
                                     className="p-4 rounded-2xl
@@ -369,7 +525,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                         })}
                     </div>
 
-                    {!monthlySubmitted && (
+                    {!isMonthlyLocked && (
                         <Button
                             onClick={validateAndSubmitMonthly}
                             loading={saving}
@@ -378,6 +534,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                         >
                             <Save size={16} className="mr-2" />
                             Submit Monthly Checklist
+                            (Editable until end of month)
                         </Button>
                     )}
                 </Card>
@@ -403,7 +560,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                                 bg-emerald-50 dark:bg-emerald-900/20
                                 px-3 py-1.5 rounded-full uppercase
                                 tracking-wider">
-                                ✓ Submitted
+                                ✓ Submitted — Editable until 11:59 PM
                             </span>
                         )}
                     </div>
@@ -430,7 +587,19 @@ export const CommitteeChecklist = ({ user, userData }) => {
 
                     <div className="space-y-3">
                         {checklist.daily.map(item => {
-                            const isLocked = dailySubmitted;
+                            const now = new Date();
+                            const isAfterMidnight =
+                                now.getHours() === 23 &&
+                                now.getMinutes() === 59 &&
+                                now.getSeconds() >= 59;
+                            const isPastToday = (() => {
+                                const todayStr =
+                                    new Date().toLocaleDateString('en-CA');
+                                return checklist.date
+                                    ? checklist.date < todayStr
+                                    : false;
+                            })();
+                            const isLocked = isAfterMidnight || isPastToday;
                             return (
                                 <div key={item.id}
                                     className="p-4 rounded-2xl
@@ -565,7 +734,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                         })}
                     </div>
 
-                    {!dailySubmitted && (
+                    {!isDailyLocked && (
                         <Button
                             onClick={validateAndSubmitDaily}
                             loading={saving}
@@ -573,7 +742,7 @@ export const CommitteeChecklist = ({ user, userData }) => {
                                 uppercase tracking-widest"
                         >
                             <Save size={16} className="mr-2" />
-                            Submit Daily Checklist
+                            Submit & Continue Editing Until 11:59 PM
                         </Button>
                     )}
                 </Card>
