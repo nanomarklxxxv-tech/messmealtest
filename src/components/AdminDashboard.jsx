@@ -280,18 +280,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [selectedImage, setSelectedImage] = useState(null);
 
     // Pagination states
-    const [usersPage, setUsersPage] = useState(1);
-    const USERS_PER_PAGE = 30;
-    const [usersLoading, setUsersLoading] =
-        useState(false);
-    const [usersTotalCount, setUsersTotalCount] =
-        useState(0);
-    const [lastVisibleUser, setLastVisibleUser] =
-        useState(null);
-    const [firstVisibleUser, setFirstVisibleUser] =
-        useState(null);
-    const [userPageStack, setUserPageStack] =
-        useState([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [usersTotalCount, setUsersTotalCount] = useState(0);
+    const [pageStack, setPageStack] = useState([]); // Array of start document snapshots
+    const [currentPageCursor, setCurrentPageCursor] = useState(null); // Last document snapshot
+    const PAGE_SIZE = 30;
 
     // Proof filters state
     const [proofDateFilter, setProofDateFilter] = useState('');
@@ -359,9 +352,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, isDestructive: true });
     const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
 
-    useEffect(() => {
-        setUsersPage(1);
-    }, [userFilter, searchQuery]);
+
 
     useEffect(() => {
         if (config) {
@@ -427,94 +418,66 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         return () => clearInterval(timer);
     }, []);
 
-    // Fetch users (paginated getDocs)
-    const fetchUsersPage = async (
-        direction = 'first'
-    ) => {
+    const fetchUsersPage = async (direction = 'first') => {
         setUsersLoading(true);
         try {
-            let q;
+            let q = collection(db, 'artifacts', appId, 'users');
+            let constraints = [orderBy('createdAt', 'desc')];
+
+            if (userFilter === 'revoked') constraints.push(where('role', '==', 'revoked'));
+            else if (userFilter === 'students') constraints.push(where('role', 'in', ['student', null]));
+            else if (userFilter === 'faculty') constraints.push(where('role', '==', 'faculty'));
+            else if (userFilter === 'admins') constraints.push(where('role', 'in', ['admin', 'super_admin']));
+
             if (direction === 'first') {
-                q = query(
-                    collection(db, 'artifacts',
-                        appId, 'users'),
-                    orderBy('createdAt', 'desc'),
-                    limit(30)
-                );
-            } else if (direction === 'next' &&
-                lastVisibleUser) {
-                q = query(
-                    collection(db, 'artifacts',
-                        appId, 'users'),
-                    orderBy('createdAt', 'desc'),
-                    startAfter(lastVisibleUser),
-                    limit(30)
-                );
-            } else if (direction === 'prev' &&
-                userPageStack.length > 1) {
-                const prevStack = [...userPageStack];
-                prevStack.pop();
-                const prevCursor =
-                    prevStack[prevStack.length - 1];
-                setUserPageStack(prevStack);
-                q = query(
-                    collection(db, 'artifacts',
-                        appId, 'users'),
-                    orderBy('createdAt', 'desc'),
-                    startAfter(prevCursor),
-                    limit(30)
-                );
+                const countSnap = await getDocs(query(q, ...constraints));
+                setUsersTotalCount(countSnap.size);
+                q = query(q, ...constraints, limit(PAGE_SIZE));
+                setPageStack([]);
+            } else if (direction === 'next' && currentPageCursor) {
+                q = query(q, ...constraints, startAfter(currentPageCursor), limit(PAGE_SIZE));
+            } else if (direction === 'prev' && pageStack.length > 1) {
+                const newStack = [...pageStack];
+                newStack.pop(); // Pop current page start
+                const prevStartCursor = newStack[newStack.length - 1]; // Previous page start
+                q = query(q, ...constraints, startAt(prevStartCursor), limit(PAGE_SIZE));
+                setPageStack(newStack);
             } else {
-                q = query(
-                    collection(db, 'artifacts',
-                        appId, 'users'),
-                    orderBy('createdAt', 'desc'),
-                    limit(30)
-                );
+                q = query(q, ...constraints, limit(PAGE_SIZE));
             }
 
             const snap = await getDocs(q);
-            const list = snap.docs.map(d => ({
-                id: d.id, ...d.data()
-            }));
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             setUsersList(list);
 
             if (snap.docs.length > 0) {
-                setLastVisibleUser(
-                    snap.docs[snap.docs.length - 1]
-                );
-                setFirstVisibleUser(snap.docs[0]);
-                if (direction === 'next') {
-                    setUserPageStack(prev => [
-                        ...prev,
-                        snap.docs[snap.docs.length - 1]
-                    ]);
-                } else if (direction === 'first') {
-                    setUserPageStack([
-                        snap.docs[snap.docs.length - 1]
-                    ]);
+                setCurrentPageCursor(snap.docs[snap.docs.length - 1]);
+                if (direction !== 'prev') {
+                    setPageStack(prev => [...prev, snap.docs[0]]);
                 }
-            }
-
-            if (direction === 'first') {
-                const countSnap = await getDocs(
-                    collection(db, 'artifacts',
-                        appId, 'users')
-                );
-                setUsersTotalCount(countSnap.size);
             }
         } catch (e) {
             console.error('Failed to fetch users:', e);
             toast.error('Failed to load users.');
+        } finally {
+            setUsersLoading(false);
+            setIsLoadingUsers(false);
         }
-        setUsersLoading(false);
-        setIsLoadingUsers(false);
     };
 
     useEffect(() => {
         if (activeTab !== 'users') return;
         fetchUsersPage('first');
-    }, [activeTab]);
+    }, [activeTab, userFilter]);
+
+    // Search debouncing
+    useEffect(() => {
+        if (activeTab !== 'users') return;
+        const timer = setTimeout(() => {
+            fetchUsersPage('first');
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     // Fetch proofs (complaints) - REMOVE the tab guard
     useEffect(() => {
@@ -1860,23 +1823,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             (u.email?.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (u.registrationId?.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (u.hostel?.toLowerCase().includes(searchQuery.toLowerCase()));
-
-        if (!matchesSearch) return false;
-
-        if (userFilter === 'revoked') return u.role === 'revoked';
-        if (userFilter === 'students') return u.role === 'student';
-        if (userFilter === 'faculty') return u.role === 'faculty';
-        if (userFilter === 'admins') return u.role === 'admin' || u.role === 'super_admin';
-        return true;
+        return matchesSearch;
     });
 
-    const totalUserPages = Math.ceil(
-        filteredUsers.length / USERS_PER_PAGE
-    );
-    const paginatedUsers = filteredUsers.slice(
-        (usersPage - 1) * USERS_PER_PAGE,
-        usersPage * USERS_PER_PAGE
-    );
+    const paginatedUsers = filteredUsers;
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -4869,7 +4819,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <button
                                             onClick={() =>
                                                 fetchUsersPage('prev')}
-                                            disabled={userPageStack.length <= 1
+                                            disabled={pageStack.length <= 1
                                                 || usersLoading}
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-zinc-100
@@ -4884,7 +4834,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <button
                                             onClick={() =>
                                                 fetchUsersPage('next')}
-                                            disabled={usersList.length < 30
+                                            disabled={(pageStack.length * PAGE_SIZE) >= usersTotalCount
                                                 || usersLoading}
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-zinc-100

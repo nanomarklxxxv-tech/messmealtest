@@ -346,25 +346,9 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             const todayStr = new Date().toLocaleDateString('en-CA');
             if (selectedDate === todayStr && menuData) {
                 const menuNotifKey = `menu_updated_${todayStr}_${userData?.hostel}_${userData?.messType}`;
-                setInAppNotifs(prev => {
-                    if (prev.some(n => n.id === menuNotifKey)) return prev;
-                    const notif = {
-                        id: menuNotifKey,
-                        type: 'menu',
-                        title: 'Menu Updated',
-                        message: `Today's menu for ${userData?.hostel} is now available.`,
-                        timestamp: Date.now(),
-                        read: false
-                    };
-                    const updated = [notif, ...prev];
-                    try {
-                        const key = `messmeal_notifs_${user?.uid || 'guest'}`;
-                        const now = Date.now();
-                        const fresh = updated.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
-                        localStorage.setItem(key, JSON.stringify(fresh));
-                        return fresh;
-                    } catch { return updated; }
-                });
+                if (!inAppNotifs.some(n => n.id === menuNotifKey)) {
+                    addNotif('menu', 'Menu Updated', `Today's menu for ${userData?.hostel} is now available.`, menuNotifKey);
+                }
             }
         });
 
@@ -425,28 +409,11 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 relevant.forEach(notice => maybeNotifyNotice(notice, notifPrefs));
             }
             isFirstNoticeLoad.current = false;
-            // In-app notifications for new notices
-            setInAppNotifs(prev => {
-                const existingIds = prev.map(n => n.id);
-                const toAdd = relevant
-                    .filter(notice => !existingIds.includes(`notice_${notice.id}`))
-                    .map(notice => ({
-                        id: `notice_${notice.id}`,
-                        type: 'notice',
-                        title: notice.title,
-                        message: notice.message,
-                        timestamp: Date.now(),
-                        read: false
-                    }));
-                if (toAdd.length === 0) return prev;
-                const updated = [...toAdd, ...prev];
-                try {
-                    const key = `messmeal_notifs_${user?.uid || 'guest'}`;
-                    const now = Date.now();
-                    const fresh = updated.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
-                    localStorage.setItem(key, JSON.stringify(fresh));
-                    return fresh;
-                } catch { return updated; }
+            relevant.forEach(notice => {
+                const notifId = `notice_${notice.id}`;
+                if (!inAppNotifs.some(n => n.id === notifId)) {
+                    addNotif('notice', notice.title, notice.message, notifId);
+                }
             });
             setIsLoadingNotices(false);
         }, (err) => {
