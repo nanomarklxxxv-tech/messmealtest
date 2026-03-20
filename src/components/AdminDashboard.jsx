@@ -4,6 +4,11 @@ import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDo
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
 import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy } from 'lucide-react';
+import {
+    LineChart, Line, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, Legend
+} from 'recharts';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { toast } from 'react-hot-toast';
@@ -57,6 +62,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [closureEndDate, setClosureEndDate] = useState('');
     const [closureReason, setClosureReason] = useState('Holiday / Special Event');
     const [schedulingClosure, setSchedulingClosure] = useState(false);
+    const [analyticsDays, setAnalyticsDays] = useState(30);
 
     // Data states
     const [usersList, setUsersList] = useState([]);
@@ -116,6 +122,151 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 Number(b.average) - Number(a.average)
             );
     }, [feedbacks]);
+
+    const analyticsData = useMemo(() => {
+        const now = new Date();
+        const cutoff = new Date(
+            now.getTime() -
+            analyticsDays * 24 * 60 * 60 * 1000
+        );
+
+        const recentFeedbacks = feedbacks.filter(f => {
+            if (!f.date) return false;
+            return new Date(f.date + 'T00:00:00')
+                >= cutoff;
+        });
+
+        const recentProofs = proofs.filter(p => {
+            if (!p.date) return false;
+            return new Date(p.date + 'T00:00:00')
+                >= cutoff;
+        });
+
+        // Ratings trend by date
+        const byDate = {};
+        recentFeedbacks.forEach(f => {
+            if (!f.date) return;
+            if (!byDate[f.date]) {
+                byDate[f.date] = {
+                    date: f.date,
+                    ratings: [],
+                    count: 0
+                };
+            }
+            byDate[f.date].ratings.push(
+                Number(f.rating)
+            );
+            byDate[f.date].count++;
+        });
+        const ratingsTrend = Object.values(byDate)
+            .sort((a, b) =>
+                a.date.localeCompare(b.date)
+            )
+            .map(d => ({
+                date: d.date.slice(5),
+                avg: d.ratings.length > 0
+                    ? Number((
+                        d.ratings.reduce(
+                            (a, b) => a + b, 0
+                        ) / d.ratings.length
+                    ).toFixed(2))
+                    : 0,
+                count: d.count
+            }));
+
+        // Ratings by meal type
+        const byMeal = {};
+        recentFeedbacks.forEach(f => {
+            if (!f.mealType) return;
+            if (!byMeal[f.mealType]) {
+                byMeal[f.mealType] = {
+                    meal: f.mealType,
+                    ratings: [],
+                    count: 0
+                };
+            }
+            byMeal[f.mealType].ratings.push(
+                Number(f.rating)
+            );
+            byMeal[f.mealType].count++;
+        });
+        const ratingsByMeal = Object.values(byMeal)
+            .map(m => ({
+                meal: m.meal,
+                avg: m.ratings.length > 0
+                    ? Number((
+                        m.ratings.reduce(
+                            (a, b) => a + b, 0
+                        ) / m.ratings.length
+                    ).toFixed(2))
+                    : 0,
+                count: m.count
+            }));
+
+        // Complaints by meal type
+        const complaintsByMeal = {};
+        recentProofs.forEach(p => {
+            const meal = p.session || p.mealType
+                || 'Unknown';
+            complaintsByMeal[meal] =
+                (complaintsByMeal[meal] || 0) + 1;
+        });
+        const complaintsData = Object.entries(
+            complaintsByMeal
+        ).map(([meal, count]) => ({
+            meal, count
+        }));
+
+        // Complaints by day of week
+        const dayNames = ['Sun', 'Mon', 'Tue',
+            'Wed', 'Thu', 'Fri', 'Sat'];
+        const byDayOfWeek = Array(7).fill(0);
+        recentProofs.forEach(p => {
+            if (!p.date) return;
+            const day = new Date(
+                p.date + 'T00:00:00'
+            ).getDay();
+            byDayOfWeek[day]++;
+        });
+        const complaintsByDay = dayNames.map(
+            (name, i) => ({
+                day: name,
+                count: byDayOfWeek[i]
+            })
+        );
+
+        // Participation by hostel
+        const byHostel = {};
+        recentFeedbacks.forEach(f => {
+            if (!f.hostel) return;
+            if (!byHostel[f.hostel]) {
+                byHostel[f.hostel] = {
+                    hostel: f.hostel, count: 0
+                };
+            }
+            byHostel[f.hostel].count++;
+        });
+        const participationByHostel =
+            Object.values(byHostel)
+                .sort((a, b) => b.count - a.count);
+
+        return {
+            ratingsTrend,
+            ratingsByMeal,
+            complaintsData,
+            complaintsByDay,
+            participationByHostel,
+            totalRatings: recentFeedbacks.length,
+            totalComplaints: recentProofs.length,
+            avgRating: recentFeedbacks.length > 0
+                ? (recentFeedbacks.reduce(
+                    (a, f) => a + Number(f.rating), 0
+                ) / recentFeedbacks.length)
+                    .toFixed(2)
+                : 'N/A'
+        };
+    }, [feedbacks, proofs, analyticsDays]);
+
 
     // UI states
     const [searchQuery, setSearchQuery] = useState('');
@@ -1693,6 +1844,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+        { id: 'analytics', label: 'Analytics', icon: BarChart3 },
         { id: 'menus', label: 'Menu Management', icon: Calendar },
         { id: 'notices', label: 'Notices', icon: Megaphone },
         { id: 'feedback', label: 'Feedback', icon: Star },
@@ -2263,6 +2415,312 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     const renderContent = () => {
         switch (activeTab) {
+            case 'analytics':
+                return (
+                    <div className="space-y-6 max-w-7xl">
+
+                        {/* Header + Day Toggle */}
+                        <div className="flex items-center
+                  justify-between flex-wrap gap-4">
+                            <div>
+                                <h2 className="text-2xl
+                          font-heading font-black
+                          text-dark dark:text-white
+                          tracking-tight flex
+                          items-center gap-3">
+                                    <BarChart3 size={28}
+                                        className="text-primary"
+                                    />
+                                    Analytics
+                                </h2>
+                                <p className="text-xs font-bold
+                          text-zinc-400 uppercase
+                          tracking-widest mt-1">
+                                    Data insights and trends
+                                </p>
+                            </div>
+                            <div className="flex gap-2 p-1
+                      bg-white dark:bg-[#16162A]
+                      border border-zinc-200
+                      dark:border-white/10
+                      rounded-2xl shadow-sm">
+                                {[7, 30, 90].map(d => (
+                                    <button
+                                        key={d}
+                                        onClick={() =>
+                                            setAnalyticsDays(d)}
+                                        className={`px-4 py-2
+                                  rounded-xl text-sm
+                                  font-bold transition-all
+                                  ${analyticsDays === d
+                                                ? 'bg-primary text-white shadow-md'
+                                                : 'text-zinc-500 hover:text-primary hover:bg-zinc-100 dark:hover:bg-white/10'
+                                            }`}
+                                    >
+                                        {d}d
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-3 gap-4">
+                            {[
+                                {
+                                    label: 'Total Ratings',
+                                    value: analyticsData
+                                        .totalRatings,
+                                    color: 'text-primary'
+                                },
+                                {
+                                    label: 'Avg Rating',
+                                    value: analyticsData
+                                        .avgRating,
+                                    color: 'text-emerald-500'
+                                },
+                                {
+                                    label: 'Complaints',
+                                    value: analyticsData
+                                        .totalComplaints,
+                                    color: 'text-red-500'
+                                }
+                            ].map(s => (
+                                <div key={s.label}
+                                    className="bg-white
+                          dark:bg-[#16162A] p-5
+                          rounded-2xl border
+                          border-zinc-200
+                          dark:border-white/10
+                          shadow-sm text-center">
+                                    <p className={`text-3xl
+                              font-heading font-black
+                              ${s.color}`}>
+                                        {s.value}
+                                    </p>
+                                    <p className="text-xs
+                              font-bold text-zinc-400
+                              uppercase tracking-widest
+                              mt-1">
+                                        {s.label}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Ratings Trend Line Chart */}
+                        <div className="bg-white
+                  dark:bg-[#16162A] p-6 rounded-2xl
+                  border border-zinc-200
+                  dark:border-white/10 shadow-sm">
+                            <h3 className="font-heading
+                      font-bold text-dark
+                      dark:text-white mb-4
+                      tracking-tight">
+                                Ratings Trend
+                            </h3>
+                            {analyticsData.ratingsTrend
+                                .length === 0 ? (
+                                <div className="h-48 flex
+                          items-center
+                          justify-center
+                          text-zinc-400 text-sm">
+                                    No data for this period
+                                </div>
+                            ) : (
+                                <ResponsiveContainer
+                                    width="100%" height={200}>
+                                    <LineChart
+                                        data={analyticsData
+                                            .ratingsTrend}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke="#f0f0f0" />
+                                        <XAxis
+                                            dataKey="date"
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <YAxis
+                                            domain={[0, 5]}
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <Tooltip />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="avg"
+                                            name="Avg Rating"
+                                            stroke="#0057FF"
+                                            strokeWidth={2}
+                                            dot={false}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+
+                        {/* Two column charts */}
+                        <div className="grid md:grid-cols-2
+                  gap-6">
+
+                            {/* Ratings by Meal */}
+                            <div className="bg-white
+                      dark:bg-[#16162A] p-6
+                      rounded-2xl border
+                      border-zinc-200
+                      dark:border-white/10 shadow-sm">
+                                <h3 className="font-heading
+                          font-bold text-dark
+                          dark:text-white mb-4
+                          tracking-tight">
+                                    Avg Rating by Meal
+                                </h3>
+                                <ResponsiveContainer
+                                    width="100%" height={180}>
+                                    <BarChart
+                                        data={analyticsData
+                                            .ratingsByMeal}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke="#f0f0f0" />
+                                        <XAxis
+                                            dataKey="meal"
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <YAxis
+                                            domain={[0, 5]}
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <Tooltip />
+                                        <Bar
+                                            dataKey="avg"
+                                            name="Avg Rating"
+                                            fill="#0057FF"
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Complaints by Meal */}
+                            <div className="bg-white
+                      dark:bg-[#16162A] p-6
+                      rounded-2xl border
+                      border-zinc-200
+                      dark:border-white/10 shadow-sm">
+                                <h3 className="font-heading
+                          font-bold text-dark
+                          dark:text-white mb-4
+                          tracking-tight">
+                                    Complaints by Meal
+                                </h3>
+                                <ResponsiveContainer
+                                    width="100%" height={180}>
+                                    <BarChart
+                                        data={analyticsData
+                                            .complaintsData}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke="#f0f0f0" />
+                                        <XAxis
+                                            dataKey="meal"
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <YAxis
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <Tooltip />
+                                        <Bar
+                                            dataKey="count"
+                                            name="Complaints"
+                                            fill="#ef4444"
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Complaints by Day of Week */}
+                            <div className="bg-white
+                      dark:bg-[#16162A] p-6
+                      rounded-2xl border
+                      border-zinc-200
+                      dark:border-white/10 shadow-sm">
+                                <h3 className="font-heading
+                          font-bold text-dark
+                          dark:text-white mb-4
+                          tracking-tight">
+                                    Complaints by Day of Week
+                                </h3>
+                                <ResponsiveContainer
+                                    width="100%" height={180}>
+                                    <BarChart
+                                        data={analyticsData
+                                            .complaintsByDay}>
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke="#f0f0f0" />
+                                        <XAxis
+                                            dataKey="day"
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <YAxis
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <Tooltip />
+                                        <Bar
+                                            dataKey="count"
+                                            name="Complaints"
+                                            fill="#f59e0b"
+                                            radius={[4, 4, 0, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* Participation by Hostel */}
+                            <div className="bg-white
+                      dark:bg-[#16162A] p-6
+                      rounded-2xl border
+                      border-zinc-200
+                      dark:border-white/10 shadow-sm">
+                                <h3 className="font-heading
+                          font-bold text-dark
+                          dark:text-white mb-4
+                          tracking-tight">
+                                    Rating Participation
+                                    by Hostel
+                                </h3>
+                                <ResponsiveContainer
+                                    width="100%" height={180}>
+                                    <BarChart
+                                        data={analyticsData
+                                            .participationByHostel}
+                                        layout="vertical">
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke="#f0f0f0" />
+                                        <XAxis
+                                            type="number"
+                                            tick={{ fontSize: 10 }}
+                                        />
+                                        <YAxis
+                                            dataKey="hostel"
+                                            type="category"
+                                            tick={{ fontSize: 10 }}
+                                            width={50}
+                                        />
+                                        <Tooltip />
+                                        <Bar
+                                            dataKey="count"
+                                            name="Ratings"
+                                            fill="#10b981"
+                                            radius={[0, 4, 4, 0]}
+                                        />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+                );
             case 'dashboard': {
                 const greeting = getGreeting();
                 return (
