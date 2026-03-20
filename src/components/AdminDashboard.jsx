@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc, startAfter } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
-import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy } from 'lucide-react';
+import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy, QrCode } from 'lucide-react';
+import QRCode from 'qrcode';
 import {
     LineChart, Line, BarChart, Bar,
     XAxis, YAxis, CartesianGrid, Tooltip,
@@ -63,6 +64,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [closureReason, setClosureReason] = useState('Holiday / Special Event');
     const [schedulingClosure, setSchedulingClosure] = useState(false);
     const [analyticsDays, setAnalyticsDays] = useState(30);
+    const [qrCodeUrl, setQrCodeUrl] = useState('');
+    const [showQrModal, setShowQrModal] = useState(false);
+    const [qrLoading, setQrLoading] = useState(false);
 
     // Data states
     const [usersList, setUsersList] = useState([]);
@@ -1815,6 +1819,39 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             }, i * 300);
         });
         toast.success(`Starting ${downloads.length} downloads...`);
+    };
+
+    const generateQRCode = async () => {
+        setQrLoading(true);
+        try {
+            const appUrl =
+                'https://messmeal4students.vercel.app';
+            const url = await QRCode.toDataURL(
+                appUrl,
+                {
+                    width: 400,
+                    margin: 2,
+                    color: {
+                        dark: '#0057FF',
+                        light: '#FFFFFF'
+                    }
+                }
+            );
+            setQrCodeUrl(url);
+            setShowQrModal(true);
+        } catch (err) {
+            toast.error('Failed to generate QR code.');
+            console.error(err);
+        }
+        setQrLoading(false);
+    };
+
+    const downloadQRCode = () => {
+        const link = document.createElement('a');
+        link.href = qrCodeUrl;
+        link.download = 'MessMeal_QR_Code.png';
+        link.click();
+        toast.success('QR Code downloaded!');
     };
 
     const filteredUsers = usersList.filter(u => {
@@ -5135,6 +5172,34 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     </p>
                                 </div>
 
+                                {/* QR Code for Feedback */}
+                                <Card className="bg-white dark:bg-[#16162A]
+                                    border border-zinc-200
+                                    dark:border-white/10 shadow-sm">
+                                    <h3 className="font-heading font-bold
+                                        text-dark dark:text-white mb-2
+                                        flex items-center gap-2 text-base
+                                        tracking-tight">
+                                        <QrCode size={20}
+                                            className="text-primary" />
+                                        Feedback QR Code
+                                    </h3>
+                                    <p className="text-xs text-zinc-500
+                                        font-medium mb-4">
+                                        Generate a QR code students can scan
+                                        to open MessMeal directly. Print and
+                                        display in the mess hall.
+                                    </p>
+                                    <Button
+                                        onClick={generateQRCode}
+                                        loading={qrLoading}
+                                        className="w-full py-3 font-black
+                                            uppercase tracking-widest"
+                                    >
+                                        Generate QR Code
+                                    </Button>
+                                </Card>
+
                                 {/* Mess Timings Config */}
                                 <div className="space-y-6 pt-10 border-t border-zinc-200 dark:border-white/10 mt-10">
                                     <h4 className="font-heading font-bold text-[#0D0D0D] dark:text-white text-lg flex items-center gap-2">
@@ -5899,6 +5964,69 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 {...successModal}
                 onConfirm={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
             />
+
+            {showQrModal && qrCodeUrl && (
+                <div className="fixed inset-0 z-[200]
+                    bg-black/70 backdrop-blur-sm flex
+                    items-center justify-center p-6">
+                    <div className="bg-white
+                        dark:bg-[#1A1A2E] rounded-3xl
+                        shadow-2xl p-8 w-full max-w-sm
+                        border border-white/10 text-center">
+
+                        <h3 className="font-heading
+                            font-black text-xl text-dark
+                            dark:text-white tracking-tight
+                            mb-2">
+                            MessMeal QR Code
+                        </h3>
+                        <p className="text-xs text-zinc-400
+                            font-medium mb-6">
+                            Students scan this to open
+                            the app directly
+                        </p>
+
+                        <div className="bg-white p-4
+                            rounded-2xl inline-block
+                            shadow-inner mb-6">
+                            <img
+                                src={qrCodeUrl}
+                                alt="MessMeal QR Code"
+                                className="w-48 h-48"
+                            />
+                        </div>
+
+                        <p className="text-[11px]
+                            text-zinc-400 font-bold mb-6
+                            uppercase tracking-widest">
+                            messmeal4students.vercel.app
+                        </p>
+
+                        <div className="flex gap-3">
+                            <Button
+                                onClick={downloadQRCode}
+                                className="flex-1 py-3
+                                    font-black uppercase
+                                    tracking-widest"
+                            >
+                                <Download size={16}
+                                    className="mr-2" />
+                                Download
+                            </Button>
+                            <Button
+                                onClick={() =>
+                                    setShowQrModal(false)}
+                                variant="secondary"
+                                className="flex-1 py-3
+                                    font-black uppercase
+                                    tracking-widest"
+                            >
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
