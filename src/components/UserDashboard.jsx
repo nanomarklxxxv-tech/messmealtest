@@ -155,8 +155,46 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [showTour, setShowTour] = useState(false);
     const [tourStep, setTourStep] = useState(0);
 
+    // ── In-app notification bell ──────────────────────────────────────────
+    const [inAppNotifs, setInAppNotifs] = useState(() => {
+        try {
+            const key = `messmeal_notifs_${user?.uid || 'guest'}`;
+            const stored = localStorage.getItem(key);
+            if (!stored) return [];
+            const all = JSON.parse(stored);
+            const now = Date.now();
+            return all.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
+        } catch { return []; }
+    });
+    const [showNotifPanel, setShowNotifPanel] = useState(false);
+
     const isFaculty = userData?.role === 'faculty';
     const theme = isFaculty ? 'purple' : settings?.theme || 'blue';
+
+    const saveNotifs = (notifs) => {
+        try {
+            const key = `messmeal_notifs_${user?.uid || 'guest'}`;
+            const now = Date.now();
+            const fresh = notifs.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
+            localStorage.setItem(key, JSON.stringify(fresh));
+            setInAppNotifs(fresh);
+        } catch {}
+    };
+
+    const addNotif = (type, title, message, customId) => {
+        const id = customId || `${type}_${Date.now()}`;
+        const notif = { id, type, title, message, timestamp: Date.now(), read: false };
+        setInAppNotifs(prev => {
+            const updated = [notif, ...prev];
+            try {
+                const key = `messmeal_notifs_${user?.uid || 'guest'}`;
+                const now = Date.now();
+                const fresh = updated.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
+                localStorage.setItem(key, JSON.stringify(fresh));
+                return fresh;
+            } catch { return updated; }
+        });
+    };
 
     const activeTimings = useMemo(() => {
         // Base timings: Default -> Config Permanent
@@ -304,6 +342,30 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 setMenuToCache(cacheKey, menuData);
             }
             syncMenu();
+            // In-app notification: menu updated for today
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            if (selectedDate === todayStr && menuData) {
+                const menuNotifKey = `menu_updated_${todayStr}_${userData?.hostel}_${userData?.messType}`;
+                setInAppNotifs(prev => {
+                    if (prev.some(n => n.id === menuNotifKey)) return prev;
+                    const notif = {
+                        id: menuNotifKey,
+                        type: 'menu',
+                        title: 'Menu Updated',
+                        message: `Today's menu for ${userData?.hostel} is now available.`,
+                        timestamp: Date.now(),
+                        read: false
+                    };
+                    const updated = [notif, ...prev];
+                    try {
+                        const key = `messmeal_notifs_${user?.uid || 'guest'}`;
+                        const now = Date.now();
+                        const fresh = updated.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
+                        localStorage.setItem(key, JSON.stringify(fresh));
+                        return fresh;
+                    } catch { return updated; }
+                });
+            }
         });
 
         const unsubClosure = onSnapshot(closureRef, (snap) => {
@@ -363,6 +425,29 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
                 relevant.forEach(notice => maybeNotifyNotice(notice, notifPrefs));
             }
             isFirstNoticeLoad.current = false;
+            // In-app notifications for new notices
+            setInAppNotifs(prev => {
+                const existingIds = prev.map(n => n.id);
+                const toAdd = relevant
+                    .filter(notice => !existingIds.includes(`notice_${notice.id}`))
+                    .map(notice => ({
+                        id: `notice_${notice.id}`,
+                        type: 'notice',
+                        title: notice.title,
+                        message: notice.message,
+                        timestamp: Date.now(),
+                        read: false
+                    }));
+                if (toAdd.length === 0) return prev;
+                const updated = [...toAdd, ...prev];
+                try {
+                    const key = `messmeal_notifs_${user?.uid || 'guest'}`;
+                    const now = Date.now();
+                    const fresh = updated.filter(n => now - n.timestamp < 24 * 60 * 60 * 1000);
+                    localStorage.setItem(key, JSON.stringify(fresh));
+                    return fresh;
+                } catch { return updated; }
+            });
             setIsLoadingNotices(false);
         }, (err) => {
             console.error("Notices fetch error:", err);
@@ -451,6 +536,18 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
         const interval = setInterval(tick, 60000); // check every minute
         return () => clearInterval(interval);
     }, []);
+
+    // ── Close notification panel on outside click ──
+    useEffect(() => {
+        if (!showNotifPanel) return;
+        const handler = (e) => {
+            if (!e.target.closest('[data-notif-panel]')) {
+                setShowNotifPanel(false);
+            }
+        };
+        document.addEventListener('click', handler);
+        return () => document.removeEventListener('click', handler);
+    }, [showNotifPanel]);
 
     const saveRegId = async () => {
         const val = editRegId.trim().toUpperCase();
@@ -754,16 +851,92 @@ Keep the health tip short, practical and encouraging.`;
                                 <Shield size={14} className="text-[#0057FF] dark:text-[#D4F000]" /> <span className="hidden sm:inline">Admin</span>
                             </button>
                         )}
-                        <button
-                            onClick={() => setShowNotices(true)}
-                            className="bg-[#F0F0F0] hover:bg-[#E4E4E4] dark:bg-[#2A2A2A] dark:hover:bg-[#333] border border-[#E4E4E4] dark:border-[#2A2A2A] p-2 rounded-xl dark:rounded-pill transition-all text-[#6B6B6B] dark:text-[#A0A0A0] relative"
-                            title="Notices"
-                        >
-                            <Bell size={16} />
-                            {notices.length > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full border-2 border-white dark:border-[#0D0D0D]"></span>
+                        <div className="relative" data-notif-panel>
+                            <button
+                                onClick={() => setShowNotifPanel(p => !p)}
+                                className="bg-[#F0F0F0] hover:bg-[#E4E4E4] dark:bg-[#2A2A2A] dark:hover:bg-[#333] border border-[#E4E4E4] dark:border-[#2A2A2A] p-2 rounded-xl dark:rounded-pill transition-all text-[#6B6B6B] dark:text-[#A0A0A0] relative"
+                                title="Notifications"
+                            >
+                                <Bell size={16} />
+                                {inAppNotifs.some(n => !n.read) && (
+                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white dark:border-[#0D0D0D]" />
+                                )}
+                            </button>
+
+                            {showNotifPanel && (
+                                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#1A1A2E] rounded-2xl shadow-2xl border border-zinc-200 dark:border-white/10 z-50 overflow-hidden">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-white/5">
+                                        <h3 className="font-heading font-black text-sm text-dark dark:text-white">Notifications</h3>
+                                        <div className="flex items-center gap-2">
+                                            {inAppNotifs.length > 0 && (
+                                                <button
+                                                    onClick={() => { saveNotifs([]); setShowNotifPanel(false); }}
+                                                    className="text-[10px] font-black text-zinc-400 hover:text-error uppercase tracking-widest"
+                                                >
+                                                    Clear all
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => setShowNotifPanel(false)}
+                                                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Notification list */}
+                                    <div className="max-h-80 overflow-y-auto">
+                                        {inAppNotifs.length === 0 ? (
+                                            <div className="py-8 text-center">
+                                                <Bell size={24} className="mx-auto text-zinc-300 mb-2" />
+                                                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">No notifications</p>
+                                            </div>
+                                        ) : (
+                                            inAppNotifs.map(notif => (
+                                                <div
+                                                    key={notif.id}
+                                                    className={`px-4 py-3 border-b border-zinc-50 dark:border-white/5 last:border-0 cursor-pointer ${!notif.read ? 'bg-blue-50/50 dark:bg-white/5' : ''}`}
+                                                    onClick={() => {
+                                                        const updated = inAppNotifs.map(n =>
+                                                            n.id === notif.id ? { ...n, read: true } : n
+                                                        );
+                                                        saveNotifs(updated);
+                                                    }}
+                                                >
+                                                    <div className="flex items-start gap-3">
+                                                        <div className={`p-1.5 rounded-lg flex-shrink-0 ${notif.type === 'notice' ? 'bg-amber-100 dark:bg-amber-500/20' : 'bg-blue-100 dark:bg-blue-500/10'}`}>
+                                                            {notif.type === 'notice'
+                                                                ? <Megaphone size={12} className="text-amber-500" />
+                                                                : <Utensils size={12} className="text-primary" />
+                                                            }
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-black text-dark dark:text-white mb-0.5">{notif.title}</p>
+                                                            <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2">{notif.message}</p>
+                                                            <p className="text-[10px] text-zinc-400 font-bold mt-1">
+                                                                {(() => {
+                                                                    const diff = Date.now() - notif.timestamp;
+                                                                    const mins = Math.floor(diff / 60000);
+                                                                    const hrs = Math.floor(mins / 60);
+                                                                    if (hrs > 0) return `${hrs}h ago`;
+                                                                    if (mins > 0) return `${mins}m ago`;
+                                                                    return 'Just now';
+                                                                })()}
+                                                            </p>
+                                                        </div>
+                                                        {!notif.read && (
+                                                            <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             )}
-                        </button>
+                        </div>
                         <button
                             onClick={() => {
                                 // soft refresh: re-trigger menu and notices without full page reload
