@@ -1550,6 +1550,16 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 return toast.error("No valid targets found");
             }
 
+            const configMessTypes = config?.messTypes || DEFAULT_MESS_TYPES;
+            const invalidTypes = targetMessTypes.filter(
+                m => !configMessTypes.includes(m)
+            );
+            if (invalidTypes.length > 0) {
+                toast.error(
+                    `Mess type "${invalidTypes.join(', ')}" not found in system config. Students with this mess type won't see the menu. Check Settings → Mess Types.`
+                );
+            }
+
             const totalDocs = await uploadMenuBatch(processedMenu, targetHostels, targetMessTypes, user.uid);
 
             // Show success modal before setCsvFile(null) to avoid any re-render race
@@ -2629,12 +2639,22 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     onChange={setMenuHostel}
                                     options={getHostelOptions()}
                                 />
-                                <Select
-                                    label="Mess Type"
-                                    value={menuType}
-                                    onChange={setMenuType}
-                                    options={getMessTypeOptions()}
-                                />
+                                <div>
+                                    <Select
+                                        label="Mess Type"
+                                        value={menuType}
+                                        onChange={setMenuType}
+                                        options={getMessTypeOptions()}
+                                    />
+                                    {menuType &&
+                                        config?.messTypes &&
+                                        !config.messTypes.includes(menuType) && (
+                                        <p className="text-[11px] text-amber-500 font-bold mt-1 flex items-center gap-1">
+                                            <AlertTriangle size={12} />
+                                            This mess type is not in system config. Students may not see this menu.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                             <div className="space-y-6">
                                 {MEAL_ORDER.map(meal => {

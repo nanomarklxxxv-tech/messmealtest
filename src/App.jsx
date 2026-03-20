@@ -63,9 +63,25 @@ const App = () => {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('messmeal_settings');
-      return saved ? JSON.parse(saved) : { theme: 'blue', darkMode: false, fontScale: 1.0, avatar: 'boy' };
+      const systemDark = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
+      return saved ? JSON.parse(saved) : {
+        theme: 'blue',
+        darkMode: systemDark,
+        fontScale: 1.0,
+        avatar: 'boy'
+      };
     } catch {
-      return { theme: 'blue', darkMode: false, fontScale: 1.0, avatar: 'boy' };
+      const systemDark = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
+      return {
+        theme: 'blue',
+        darkMode: systemDark,
+        fontScale: 1.0,
+        avatar: 'boy'
+      };
     }
   });
 
@@ -157,6 +173,31 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Session timeout: refresh Firebase token on tab visibility change
+  useEffect(() => {
+    if (!user) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          await user.getIdToken(true);
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+          if (
+            error.code === 'auth/user-token-expired' ||
+            error.code === 'auth/user-not-found'
+          ) {
+            toast.error('Session expired. Please sign in again.');
+            await signOut(auth);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user]);
 
   // Request FCM Token
   useEffect(() => {

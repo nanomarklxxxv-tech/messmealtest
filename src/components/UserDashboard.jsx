@@ -117,6 +117,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     const [successModal, setSuccessModal] = useState({ isOpen: false, title: '', message: '' });
     const [showChecklist, setShowChecklist] = useState(false);
     const isFirstNoticeLoad = React.useRef(true);
+    const isSubmittingRef = React.useRef(false);
     const [dismissedNotices, setDismissedNotices] =
         useState(() => {
             try {
@@ -487,11 +488,20 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
     };
 
     const submitMealRating = async (meal) => {
-        if (isPending) return toast.error("Please wait for account approval to submit ratings.");
-        if (!ratings[meal]) return;
+        if (isSubmittingRef.current) return;
+        isSubmittingRef.current = true;
+        if (isPending) {
+            isSubmittingRef.current = false;
+            return toast.error("Please wait for account approval to submit ratings.");
+        }
+        if (!ratings[meal]) {
+            isSubmittingRef.current = false;
+            return;
+        }
 
         const todayStr = new Date().toLocaleDateString('en-CA');
         if (selectedDate !== todayStr) {
+            isSubmittingRef.current = false;
             toast.error("You can only submit ratings for today");
             return;
         }
@@ -545,6 +555,7 @@ export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSw
             toast.error("Failed to submit rating.");
         } finally {
             setSubmittingAll(false);
+            isSubmittingRef.current = false;
         }
     };
 
