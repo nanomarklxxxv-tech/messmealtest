@@ -284,6 +284,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [usersTotalCount, setUsersTotalCount] = useState(0);
     const [pageStack, setPageStack] = useState([]); // Array of start document snapshots
     const [currentPageCursor, setCurrentPageCursor] = useState(null); // Last document snapshot
+    const [hasMoreUsers, setHasMoreUsers] = useState(true);
     const PAGE_SIZE = 30;
 
     // Proof filters state
@@ -449,6 +450,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             const snap = await getDocs(q);
             const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             setUsersList(list);
+            setHasMoreUsers(snap.docs.length === PAGE_SIZE);
 
             if (snap.docs.length > 0) {
                 setCurrentPageCursor(snap.docs[snap.docs.length - 1]);
@@ -4834,8 +4836,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <button
                                             onClick={() =>
                                                 fetchUsersPage('next')}
-                                            disabled={(pageStack.length * PAGE_SIZE) >= usersTotalCount
-                                                || usersLoading}
+                                            disabled={!hasMoreUsers || usersLoading}
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-zinc-100
                                                 dark:bg-white/10 text-zinc-700

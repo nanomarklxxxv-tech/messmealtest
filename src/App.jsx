@@ -300,6 +300,25 @@ const App = () => {
             await updateDoc(userRef, { email });
         }
 
+        // Fix wrong role for existing users
+        // based on their email domain
+        const correctRole = isStudentDomain
+            ? 'student'
+            : isFacultyDomain
+                ? 'faculty'
+                : null;
+
+        if (correctRole &&
+            existingData.role !== 'revoked' &&
+            existingData.role !== 'admin' &&
+            existingData.role !== 'super_admin' &&
+            existingData.role !== correctRole) {
+            await updateDoc(userRef, {
+                role: correctRole,
+                approved: true
+            });
+        }
+
         if (!existingData.role) {
             const fixedRole = isStudentDomain ? 'student' :
                               isFacultyDomain ? 'faculty' : 'student';
