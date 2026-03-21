@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc, startAfter } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc, startAfter, startAt } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
 import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy, QrCode } from 'lucide-react';
@@ -51,7 +51,7 @@ const getGreeting = () => {
 
 export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, config, onUpdateConfig, settings, updateSettings }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
     const [showProfileEdit, setShowProfileEdit] = useState(false);
     const [showBouncingLogo, setShowBouncingLogo] = useState(false);
     const [showMaintenancePopup, setShowMaintenancePopup] = useState(true);
@@ -423,10 +423,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         setUsersLoading(true);
         try {
             let q = collection(db, 'artifacts', appId, 'users');
-            let constraints = [orderBy('createdAt', 'desc')];
+            let constraints = [orderBy('name', 'asc')];
 
             if (userFilter === 'revoked') constraints.push(where('role', '==', 'revoked'));
-            else if (userFilter === 'students') constraints.push(where('role', 'in', ['student', null]));
+            else if (userFilter === 'students') constraints.push(where('role', '==', 'student'));
             else if (userFilter === 'faculty') constraints.push(where('role', '==', 'faculty'));
             else if (userFilter === 'admins') constraints.push(where('role', 'in', ['admin', 'super_admin']));
 
@@ -460,7 +460,35 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             }
         } catch (e) {
             console.error('Failed to fetch users:', e);
-            toast.error('Failed to load users.');
+            if (e.code === 'failed-precondition' ||
+                e.message?.includes('index')) {
+                toast.error(
+                    'Firestore index missing. ' +
+                    'Loading all users as fallback...'
+                );
+                try {
+                    const fallbackSnap = await getDocs(
+                        query(
+                            collection(db, 'artifacts',
+                                appId, 'users'),
+                            orderBy('name', 'asc'),
+                            limit(PAGE_SIZE)
+                        )
+                    );
+                    const list = fallbackSnap.docs.map(
+                        d => ({ id: d.id, ...d.data() })
+                    );
+                    setUsersList(list);
+                    setHasMoreUsers(
+                        fallbackSnap.docs.length
+                        === PAGE_SIZE
+                    );
+                } catch (fallbackErr) {
+                    toast.error('Failed to load users.');
+                }
+            } else {
+                toast.error('Failed to load users.');
+            }
         } finally {
             setUsersLoading(false);
             setIsLoadingUsers(false);
@@ -1791,24 +1819,62 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         try {
             const appUrl =
                 'https://messmeal4students.vercel.app';
-            const url = await QRCode.toDataURL(
-                appUrl,
-                {
-                    width: 400,
-                    margin: 2,
-                    color: {
-                        dark: '#0057FF',
-                        light: '#FFFFFF'
+
+            let url;
+            try {
+                url = await QRCode.toDataURL(
+                    appUrl,
+                    {
+                        width: 400,
+                        margin: 2,
+                        color: {
+                            dark: '#0057FF',
+                            light: '#FFFFFF'
+                        },
+                        errorCorrectionLevel: 'H'
                     }
+                );
+            } catch (qrErr) {
+                console.error('QRCode.toDataURL failed:',
+                    qrErr);
+                try {
+                    const canvas =
+                        document.createElement('canvas');
+                    await QRCode.toCanvas(
+                        canvas, appUrl,
+                        {
+                            width: 400,
+                            margin: 2,
+                            color: {
+                                dark: '#0057FF',
+                                light: '#FFFFFF'
+                            }
+                        }
+                    );
+                    url = canvas.toDataURL('image/png');
+                } catch (canvasErr) {
+                    console.error(
+                        'QRCode.toCanvas also failed:',
+                        canvasErr
+                    );
+                    throw new Error(
+                        'QR code generation failed. ' +
+                        'Check browser console.'
+                    );
                 }
-            );
+            }
+
             setQrCodeUrl(url);
             setShowQrModal(true);
         } catch (err) {
-            toast.error('Failed to generate QR code.');
-            console.error(err);
+            toast.error(
+                err.message ||
+                'Failed to generate QR code.'
+            );
+            console.error('QR error:', err);
+        } finally {
+            setQrLoading(false);
         }
-        setQrLoading(false);
     };
 
     const downloadQRCode = () => {
@@ -4627,12 +4693,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <tr className="border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/20">
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest whitespace-nowrap">Name / Email</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Role</th>
-                                            <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Location</th>
+                                            <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest hidden md:table-cell">Location</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400
-                                                uppercase tracking-widest">
+                                                uppercase tracking-widest hidden lg:table-cell">
                                                 Committee
                                             </th>
-                                            <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
+                                            <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest hidden sm:table-cell">Status</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -4648,12 +4714,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                         {(u.role || 'Unassigned').replace('_', ' ')}
                                                     </Badge>
                                                 </td>
-                                                <td className="p-5">
+                                                <td className="p-5 hidden md:table-cell">
                                                     <span className="text-sm font-semibold text-zinc-300">
                                                         {u.hostel ? `${u.hostel} (${u.messType})` : '-'}
                                                     </span>
                                                 </td>
-                                                <td className="p-5">
+                                                <td className="p-5 hidden lg:table-cell">
                                                     {isSuperAdmin ? (
                                                         <select
                                                             value={u.committeeRole || ''}
@@ -4703,8 +4769,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                     border-emerald-500/30
                                                                     hover:bg-emerald-500
                                                                     hover:text-white
-                                                                    sm:opacity-0
-                                                                    group-hover:opacity-100
                                                                     transition-all font-bold"
                                                             >
                                                                 Restore Access
@@ -4722,8 +4786,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                         border-amber-500/30
                                                                         hover:bg-amber-500
                                                                         hover:text-white
-                                                                        sm:opacity-0
-                                                                        group-hover:opacity-100
                                                                         transition-all font-bold"
                                                                 >
                                                                     Remove Admin
@@ -4739,8 +4801,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                         border-error/30
                                                                         hover:bg-error
                                                                         hover:text-white
-                                                                        sm:opacity-0
-                                                                        group-hover:opacity-100
                                                                         transition-all font-bold"
                                                                 >
                                                                     Revoke All
@@ -4760,8 +4820,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                         border-blue-500/30
                                                                         hover:bg-blue-500
                                                                         hover:text-white
-                                                                        sm:opacity-0
-                                                                        group-hover:opacity-100
                                                                         transition-all font-bold"
                                                                 >
                                                                     Make Admin
@@ -4777,8 +4835,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                         border-error/30
                                                                         hover:bg-error
                                                                         hover:text-white
-                                                                        sm:opacity-0
-                                                                        group-hover:opacity-100
                                                                         transition-all font-bold"
                                                                 >
                                                                     Revoke
@@ -4794,8 +4850,6 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                                     rounded-xl bg-error/10 text-error
                                                                     border border-error/30
                                                                     hover:bg-error hover:text-white
-                                                                    sm:opacity-0
-                                                                    group-hover:opacity-100
                                                                     transition-all font-bold"
                                                             >
                                                                 Revoke

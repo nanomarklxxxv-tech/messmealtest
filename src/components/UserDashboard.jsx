@@ -831,7 +831,7 @@ Keep the health tip short, practical and encouraging.`;
                             </button>
 
                             {showNotifPanel && (
-                                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-[#1A1A2E] rounded-2xl shadow-2xl border border-zinc-200 dark:border-white/10 z-50 overflow-hidden">
+                                <div className="fixed right-2 left-2 sm:absolute sm:left-auto sm:right-0 sm:w-80 top-16 sm:top-full sm:mt-2 bg-white dark:bg-[#1A1A2E] rounded-2xl shadow-2xl border border-zinc-200 dark:border-white/10 z-50 overflow-hidden">
                                     {/* Header */}
                                     <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-white/5">
                                         <h3 className="font-heading font-black text-sm text-dark dark:text-white">Notifications</h3>
