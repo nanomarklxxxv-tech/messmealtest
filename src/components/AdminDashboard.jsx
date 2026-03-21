@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc, startAfter, startAt } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
 import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy, QrCode } from 'lucide-react';
@@ -279,13 +279,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [reportFilter, setReportFilter] = useState('all');
     const [selectedImage, setSelectedImage] = useState(null);
 
-    // Pagination states
-    const [usersLoading, setUsersLoading] = useState(false);
-    const [usersTotalCount, setUsersTotalCount] = useState(0);
-    const [pageStack, setPageStack] = useState([]); // Array of start document snapshots
-    const [currentPageCursor, setCurrentPageCursor] = useState(null); // Last document snapshot
-    const [hasMoreUsers, setHasMoreUsers] = useState(true);
-    const PAGE_SIZE = 30;
+  const [usersCurrentPage, setUsersCurrentPage] =
+      useState(1);
+  const USERS_PER_PAGE = 30;
 
     // Proof filters state
     const [proofDateFilter, setProofDateFilter] = useState('');
@@ -419,95 +415,35 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         return () => clearInterval(timer);
     }, []);
 
-    const fetchUsersPage = async (direction = 'first') => {
-        setUsersLoading(true);
-        try {
-            let q = collection(db, 'artifacts', appId, 'users');
-            let constraints = [orderBy('name', 'asc')];
+  const fetchAllUsers = async () => {
+      setIsLoadingUsers(true);
+      try {
+          const snap = await getDocs(
+              collection(db, 'artifacts',
+                  appId, 'users')
+          );
+          const list = snap.docs.map(d => ({
+              id: d.id, ...d.data()
+          }));
+          setUsersList(list);
+          setUsersCurrentPage(1);
+      } catch (e) {
+          console.error(
+              'Failed to fetch users:', e
+          );
+          toast.error('Failed to load users.');
+      }
+      setIsLoadingUsers(false);
+  };
 
-            if (userFilter === 'revoked') constraints.push(where('role', '==', 'revoked'));
-            else if (userFilter === 'students') constraints.push(where('role', '==', 'student'));
-            else if (userFilter === 'faculty') constraints.push(where('role', '==', 'faculty'));
-            else if (userFilter === 'admins') constraints.push(where('role', 'in', ['admin', 'super_admin']));
+  useEffect(() => {
+      if (activeTab !== 'users') return;
+      fetchAllUsers();
+  }, [activeTab]);
 
-            if (direction === 'first') {
-                const countSnap = await getDocs(query(q, ...constraints));
-                setUsersTotalCount(countSnap.size);
-                q = query(q, ...constraints, limit(PAGE_SIZE));
-                setPageStack([]);
-            } else if (direction === 'next' && currentPageCursor) {
-                q = query(q, ...constraints, startAfter(currentPageCursor), limit(PAGE_SIZE));
-            } else if (direction === 'prev' && pageStack.length > 1) {
-                const newStack = [...pageStack];
-                newStack.pop(); // Pop current page start
-                const prevStartCursor = newStack[newStack.length - 1]; // Previous page start
-                q = query(q, ...constraints, startAt(prevStartCursor), limit(PAGE_SIZE));
-                setPageStack(newStack);
-            } else {
-                q = query(q, ...constraints, limit(PAGE_SIZE));
-            }
-
-            const snap = await getDocs(q);
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            setUsersList(list);
-            setHasMoreUsers(snap.docs.length === PAGE_SIZE);
-
-            if (snap.docs.length > 0) {
-                setCurrentPageCursor(snap.docs[snap.docs.length - 1]);
-                if (direction !== 'prev') {
-                    setPageStack(prev => [...prev, snap.docs[0]]);
-                }
-            }
-        } catch (e) {
-            console.error('Failed to fetch users:', e);
-            if (e.code === 'failed-precondition' ||
-                e.message?.includes('index')) {
-                toast.error(
-                    'Firestore index missing. ' +
-                    'Loading all users as fallback...'
-                );
-                try {
-                    const fallbackSnap = await getDocs(
-                        query(
-                            collection(db, 'artifacts',
-                                appId, 'users'),
-                            orderBy('name', 'asc'),
-                            limit(PAGE_SIZE)
-                        )
-                    );
-                    const list = fallbackSnap.docs.map(
-                        d => ({ id: d.id, ...d.data() })
-                    );
-                    setUsersList(list);
-                    setHasMoreUsers(
-                        fallbackSnap.docs.length
-                        === PAGE_SIZE
-                    );
-                } catch (fallbackErr) {
-                    toast.error('Failed to load users.');
-                }
-            } else {
-                toast.error('Failed to load users.');
-            }
-        } finally {
-            setUsersLoading(false);
-            setIsLoadingUsers(false);
-        }
-    };
-
-    useEffect(() => {
-        if (activeTab !== 'users') return;
-        fetchUsersPage('first');
-    }, [activeTab, userFilter]);
-
-    // Search debouncing
-    useEffect(() => {
-        if (activeTab !== 'users') return;
-        const timer = setTimeout(() => {
-            fetchUsersPage('first');
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
+  useEffect(() => {
+      setUsersCurrentPage(1);
+  }, [userFilter, searchQuery]);
 
     // Fetch proofs (complaints) - REMOVE the tab guard
     useEffect(() => {
@@ -1885,16 +1821,45 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         toast.success('QR Code downloaded!');
     };
 
-    const filteredUsers = usersList.filter(u => {
-        const matchesSearch = !searchQuery || 
-            (u.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (u.email?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (u.registrationId?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (u.hostel?.toLowerCase().includes(searchQuery.toLowerCase()));
-        return matchesSearch;
-    });
+  const filteredUsers = usersList
+      .filter(u => {
+          if (userFilter === 'revoked')
+              return u.role === 'revoked';
+          if (userFilter === 'students')
+              return u.role === 'student';
+          if (userFilter === 'faculty')
+              return u.role === 'faculty';
+          if (userFilter === 'admins')
+              return u.role === 'admin' ||
+                  u.role === 'super_admin';
+          return true;
+      })
+      .filter(u => {
+          if (!searchQuery.trim()) return true;
+          const q = searchQuery
+              .trim().toLowerCase();
+          return (
+              (u.name || '').toLowerCase()
+                  .includes(q) ||
+              (u.email || '').toLowerCase()
+                  .includes(q) ||
+              (u.registrationId || '').toLowerCase()
+                  .includes(q) ||
+              (u.hostel || '').toLowerCase()
+                  .includes(q)
+          );
+      })
+      .sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '')
+      );
 
-    const paginatedUsers = filteredUsers;
+  const totalUserPages = Math.ceil(
+      filteredUsers.length / USERS_PER_PAGE
+  );
+  const paginatedUsers = filteredUsers.slice(
+      (usersCurrentPage - 1) * USERS_PER_PAGE,
+      usersCurrentPage * USERS_PER_PAGE
+  );
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -4864,47 +4829,65 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 {/* Pagination */}
                                 <div className="flex items-center
                                     justify-between px-5 py-4 border-t
-                                    border-zinc-100 dark:border-white/5">
+                                    border-zinc-100 dark:border-white/5
+                                    flex-wrap gap-3">
                                     <p className="text-xs font-bold
                                         text-zinc-400">
-                                        {usersTotalCount > 0
-                                            ? `${usersTotalCount} total users`
-                                            : `${usersList.length} users shown`}
+                                        {filteredUsers.length} user
+                                        {filteredUsers.length !== 1 ? 's' : ''}
+                                        {userFilter !== 'all'
+                                            ? ` (${userFilter})`
+                                            : ''
+                                        }
+                                        {totalUserPages > 1
+                                            ? ` — Page ${usersCurrentPage}
+                                            of ${totalUserPages}`
+                                            : ''
+                                        }
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() =>
-                                                fetchUsersPage('prev')}
-                                            disabled={pageStack.length <= 1
-                                                || usersLoading}
+                                                setUsersCurrentPage(p =>
+                                                    Math.max(1, p - 1)
+                                                )
+                                            }
+                                            disabled={usersCurrentPage === 1}
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-zinc-100
                                                 dark:bg-white/10 text-zinc-700
                                                 dark:text-white disabled:opacity-40
                                                 hover:bg-zinc-200
                                                 dark:hover:bg-white/20
-                                                transition-colors"
+                                                transition-all font-bold"
                                         >
                                             ← Prev
                                         </button>
                                         <button
                                             onClick={() =>
-                                                fetchUsersPage('next')}
-                                            disabled={!hasMoreUsers || usersLoading}
+                                                setUsersCurrentPage(p =>
+                                                    Math.min(totalUserPages,
+                                                        p + 1)
+                                                )
+                                            }
+                                            disabled={
+                                                usersCurrentPage ===
+                                                totalUserPages ||
+                                                totalUserPages === 0
+                                            }
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-zinc-100
                                                 dark:bg-white/10 text-zinc-700
                                                 dark:text-white disabled:opacity-40
                                                 hover:bg-zinc-200
                                                 dark:hover:bg-white/20
-                                                transition-colors"
+                                                transition-all font-bold"
                                         >
                                             Next →
                                         </button>
                                         <button
-                                            onClick={() =>
-                                                fetchUsersPage('first')}
-                                            disabled={usersLoading}
+                                            onClick={fetchAllUsers}
+                                            disabled={isLoadingUsers}
                                             className="px-4 py-2 rounded-xl
                                                 text-sm font-bold bg-primary/10
                                                 text-primary hover:bg-primary/20
