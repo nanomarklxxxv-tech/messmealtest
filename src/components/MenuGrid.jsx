@@ -13,7 +13,7 @@ export const MenuGrid = ({ menu, isLoading, activeTimings, selectedDateStr, nutr
                     <div className="h-12 w-40 bg-[#E4E4E4] dark:bg-[#2A2A2A] rounded-xl animate-pulse mb-3" />
                     <div className="h-5 w-56 bg-[#E4E4E4] dark:bg-[#2A2A2A] rounded animate-pulse" />
                 </div>
-                <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-start">
                     {[1, 2, 3, 4].map(i => (
                         <div key={i} className="bg-white dark:bg-[#1A1A1A] rounded-2xl border-2 border-zinc-200 dark:border-zinc-700 p-6 shadow-md flex flex-col h-52 animate-pulse">
                             <div className="h-6 w-24 bg-[#E4E4E4] dark:bg-[#2A2A2A] rounded-full mb-6" />
@@ -65,7 +65,7 @@ export const MenuGrid = ({ menu, isLoading, activeTimings, selectedDateStr, nutr
             </div>
 
             {/* ── MEAL CARDS ──────────────────────────────── */}
-            <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-start">
                 {MEAL_ORDER.map(meal => {
                     const status = getMealStatus(meal, activeTimings, selectedDateStr);
                     const timing = activeTimings?.[meal] || DEFAULT_MEAL_TIMINGS[meal];

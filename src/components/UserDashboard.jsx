@@ -1207,7 +1207,7 @@ Keep the health tip short, practical and encouraging.`;
                                                 'bg-white dark:bg-[#0D0D0D] shadow-md'
                                             }`}>
                                             {/* Header */}
-                                            <div className={`px-5 py-4 flex items-center justify-between ${primaryBg}`}>
+                                            <div className={`px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between flex-wrap gap-2 ${primaryBg}`}>
                                                 <h4 className="font-heading font-black text-white dark:text-[#0D0D0D] tracking-tight text-lg uppercase">{meal}</h4>
                                                 <div className="flex items-center gap-2">
                                                     {/* Timing status badge */}

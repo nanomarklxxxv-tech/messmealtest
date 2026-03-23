@@ -26,7 +26,7 @@ export const DateStrip = ({ selectedDate, onSelectDate, theme = 'orange' }) => {
 
     return (
         <div className="relative w-full mb-6">
-            <div ref={scrollRef} className="flex overflow-x-auto gap-3 pb-4 px-2 snap-x scrollbar-hide" style={{ scrollBehavior: 'smooth' }}>
+            <div ref={scrollRef} className="flex overflow-x-auto gap-3 pb-4 px-2 snap-x snap-mandatory scrollbar-hide scroll-px-2" style={{ scrollBehavior: 'smooth' }}>
                 {dates.map((date, idx) => {
                     const isSelected = isSameDay(date, selectedDate);
                     const isToday = isSameDay(date, new Date().toLocaleDateString('en-CA'));
