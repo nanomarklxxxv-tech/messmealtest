@@ -2,74 +2,107 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function userRole(appId) {
+      return get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin(appId) {
+      return userRole(appId) in ['admin', 'super_admin'];
+    }
+
+    function isMiniAdmin(appId) {
+      return userRole(appId) == 'mini_admin';
+    }
+
+    function miniAdminHostels(appId) {
+      return get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.assignedHostels;
+    }
+
+    function miniAdminAllowed(appId, hostel) {
+      return isMiniAdmin(appId) &&
+        hostel in miniAdminHostels(appId);
+    }
+
     match /artifacts/{appId}/users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null 
-        && (request.auth.uid == userId 
-            || get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']);
+      allow write: if request.auth != null
+        && (request.auth.uid == userId
+          || isAdmin(appId)
+          || (isMiniAdmin(appId) &&
+            resource.data.hostel in
+            miniAdminHostels(appId)));
     }
 
     match /artifacts/{appId}/public/data/menus/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'faculty'];
+        && isAdmin(appId);
     }
 
     match /artifacts/{appId}/public/data/mess_closures/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'faculty'];
+        && isAdmin(appId);
     }
 
     match /artifacts/{appId}/public/data/ratings/{docId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && (isAdmin(appId) ||
+          miniAdminAllowed(appId,
+            resource.data.hostel));
     }
 
     match /artifacts/{appId}/public/data/proofs/{docId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && (isAdmin(appId) ||
+          miniAdminAllowed(appId,
+            resource.data.hostel));
     }
 
     match /artifacts/{appId}/public/data/notices/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'faculty'];
+        && (isAdmin(appId) || isMiniAdmin(appId));
     }
 
     match /artifacts/{appId}/public/data/feedback_reports/{docId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && (isAdmin(appId) ||
+          miniAdminAllowed(appId,
+            resource.data.hostel));
     }
 
     match /artifacts/{appId}/config/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && isAdmin(appId);
     }
 
     match /artifacts/{appId}/mail_queue/{docId} {
       allow read, write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && isAdmin(appId);
     }
 
     match /artifacts/{appId}/public/data/checklists/{docId} {
       allow read: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'student', 'faculty'];
+        && (isAdmin(appId)
+          || isMiniAdmin(appId)
+          || get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.committeeRole != null);
       allow write: if request.auth != null
-        && (get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin']
-            || get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.committeeRole != null);
+        && (isAdmin(appId)
+          || isMiniAdmin(appId)
+          || get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.committeeRole != null);
     }
 
     match /artifacts/{appId}/public/data/checklist_reports/{docId} {
       allow read, write: if request.auth != null
-        && get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+        && (isAdmin(appId) || isMiniAdmin(appId));
     }
   }
 }

@@ -5,13 +5,13 @@ import {
 } from 'firebase/firestore';
 import { COMMITTEE_CHECKLISTS, COMMITTEE_ROLES } from
     '../lib/constants';
-import { CheckCircle2, XCircle, Clock, Save,
+import { CheckCircle2, XCircle, Clock, Save, Clock4,
     ClipboardList, AlertTriangle, MessageSquare } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Button } from './ui/Button';
 import { Card } from './ui/Card';
 
-export const CommitteeChecklist = ({ user, userData }) => {
+export const CommitteeChecklist = ({ user, userData, config }) => {
     const committeeRole = userData?.committeeRole;
     const checklist = COMMITTEE_CHECKLISTS[committeeRole];
     const hostel = userData?.hostel || 'GENERAL';
@@ -63,6 +63,44 @@ export const CommitteeChecklist = ({ user, userData }) => {
                 now.getSeconds();
             return totalSeconds >= 86399;
         })();
+
+    const DEFAULT_TIMINGS = {
+        Breakfast: { start: '07:30' },
+        Lunch:     { start: '12:30' },
+        Snacks:    { start: '16:30' },
+        Dinner:    { start: '19:30' }
+    };
+
+    const isMealWindowOpen = (meal) => {
+        if (isDailyLocked) return false;
+        const timings = config?.mealTimings
+            || DEFAULT_TIMINGS;
+        const timing = timings[meal];
+        if (!timing?.start) return true;
+        const now = new Date();
+        const [h, m] = timing.start
+            .split(':').map(Number);
+        const mealMinutes = h * 60 + m;
+        const nowMinutes =
+            now.getHours() * 60 + now.getMinutes();
+        return nowMinutes >= mealMinutes - 30;
+    };
+
+    const getMealOpensAt = (meal) => {
+        const timings = config?.mealTimings
+            || DEFAULT_TIMINGS;
+        const timing = timings[meal];
+        if (!timing?.start) return null;
+        const [h, m] = timing.start
+            .split(':').map(Number);
+        const openH = m >= 30
+            ? h
+            : h - 1;
+        const openM = m >= 30
+            ? m - 30
+            : m + 30;
+        return `${String(openH).padStart(2, '0')}:${String(openM).padStart(2, '0')}`;
+    };
 
 
     // Real-time listener for daily checklist
@@ -666,92 +704,107 @@ export const CommitteeChecklist = ({ user, userData }) => {
                                                     mb-1.5">
                                                     {meal}
                                                 </p>
-                                                <div className="flex
-                                                    gap-2 items-start">
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            disabled={
-                                                                isLocked
-                                                            }
-                                                            onClick={() =>
-                                                                updateDailyField(
-                                                                    item.id,
-                                                                    meal,
-                                                                    'status',
-                                                                    '✓'
-                                                                )
-                                                            }
-                                                            className={`px-4
-                                                                py-2 rounded-xl
-                                                                text-sm font-black
-                                                                transition-all
-                                                                ${entry.status === '✓'
-                                                                    ? 'bg-emerald-500 text-white'
-                                                                    : 'bg-zinc-200 dark:bg-white/10 text-zinc-500'
-                                                                } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                                        >
-                                                            ✓
-                                                        </button>
-                                                        <button
-                                                            disabled={
-                                                                isLocked
-                                                            }
-                                                            onClick={() =>
-                                                                updateDailyField(
-                                                                    item.id,
-                                                                    meal,
-                                                                    'status',
-                                                                    '✗'
-                                                                )
-                                                            }
-                                                            className={`px-4
-                                                                py-2 rounded-xl
-                                                                text-sm font-black
-                                                                transition-all
-                                                                ${entry.status === '✗'
-                                                                    ? 'bg-red-500 text-white'
-                                                                    : 'bg-zinc-200 dark:bg-white/10 text-zinc-500'
-                                                                } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
-                                                        >
-                                                            ✗
-                                                        </button>
+                                                {!isMealWindowOpen(meal) ? (
+                                                    <div className="flex flex-col
+                                                        items-center justify-center
+                                                        py-4 gap-1">
+                                                        <Clock4 size={16}
+                                                            className="text-zinc-400" />
+                                                        <p className="text-[10px] font-black
+                                                            text-zinc-400 uppercase
+                                                            tracking-widest text-center">
+                                                            Opens at<br />
+                                                            {getMealOpensAt(meal)}
+                                                        </p>
                                                     </div>
-                                                    {entry.status ===
-                                                        '✗' && (
-                                                        <input
-                                                            type="text"
-                                                            disabled={
-                                                                isLocked
-                                                            }
-                                                            value={
-                                                                entry.remarks
-                                                                || ''
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateDailyField(
-                                                                    item.id,
-                                                                    meal,
-                                                                    'remarks',
-                                                                    e.target.value
-                                                                )
-                                                            }
-                                                            placeholder="Remarks (required)"
-                                                            className="flex-1
-                                                                p-2 text-sm
-                                                                bg-white
-                                                                dark:bg-black/40
-                                                                border
-                                                                border-red-300
-                                                                dark:border-red-500/30
-                                                                rounded-xl
-                                                                outline-none
-                                                                focus:border-red-500
-                                                                text-dark
-                                                                dark:text-white
-                                                                placeholder-red-300"
-                                                        />
-                                                    )}
-                                                </div>
+                                                ) : (
+                                                    <div className="flex
+                                                        gap-2 items-start">
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                disabled={
+                                                                    isLocked
+                                                                }
+                                                                onClick={() =>
+                                                                    updateDailyField(
+                                                                        item.id,
+                                                                        meal,
+                                                                        'status',
+                                                                        '✓'
+                                                                    )
+                                                                }
+                                                                className={`px-4
+                                                                    py-2 rounded-xl
+                                                                    text-sm font-black
+                                                                    transition-all
+                                                                    ${entry.status === '✓'
+                                                                        ? 'bg-emerald-500 text-white'
+                                                                        : 'bg-zinc-200 dark:bg-white/10 text-zinc-500'
+                                                                    } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                            >
+                                                                ✓
+                                                            </button>
+                                                            <button
+                                                                disabled={
+                                                                    isLocked
+                                                                }
+                                                                onClick={() =>
+                                                                    updateDailyField(
+                                                                        item.id,
+                                                                        meal,
+                                                                        'status',
+                                                                        '✗'
+                                                                    )
+                                                                }
+                                                                className={`px-4
+                                                                    py-2 rounded-xl
+                                                                    text-sm font-black
+                                                                    transition-all
+                                                                    ${entry.status === '✗'
+                                                                        ? 'bg-red-500 text-white'
+                                                                        : 'bg-zinc-200 dark:bg-white/10 text-zinc-500'
+                                                                    } ${isLocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                            >
+                                                                ✗
+                                                            </button>
+                                                        </div>
+                                                        {entry.status ===
+                                                            '✗' && (
+                                                            <input
+                                                                type="text"
+                                                                disabled={
+                                                                    isLocked
+                                                                }
+                                                                value={
+                                                                    entry.remarks
+                                                                    || ''
+                                                                }
+                                                                onChange={(e) =>
+                                                                    updateDailyField(
+                                                                        item.id,
+                                                                        meal,
+                                                                        'remarks',
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                placeholder="Remarks (required)"
+                                                                className="flex-1
+                                                                    p-2 text-sm
+                                                                    bg-white
+                                                                    dark:bg-black/40
+                                                                    border
+                                                                    border-red-300
+                                                                    dark:border-red-500/30
+                                                                    rounded-xl
+                                                                    outline-none
+                                                                    focus:border-red-500
+                                                                    text-dark
+                                                                    dark:text-white
+                                                                    placeholder-red-300"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}

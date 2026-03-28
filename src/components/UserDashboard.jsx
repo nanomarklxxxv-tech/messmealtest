@@ -940,7 +940,7 @@ Keep the health tip short, practical and encouraging.`;
                         >
                             ← Back to Dashboard
                         </button>
-                        <CommitteeChecklist user={user} userData={userData} />
+                        <CommitteeChecklist user={user} userData={userData} config={config} />
                     </div>
                 ) : (
                     <>

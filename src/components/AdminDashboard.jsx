@@ -88,7 +88,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     const averageRatings = useMemo(() => {
         const mealRatings = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
-        feedbacks.forEach(f => {
+        feedbacks.filter(f =>
+            !isMiniAdmin || isHostelAllowed(f.hostel)
+        ).forEach(f => {
             if (f.mealType && f.rating) mealRatings[f.mealType].push(f.rating);
         });
         const avgs = {};
@@ -97,11 +99,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             avgs[m] = list.length > 0 ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : 'N/A';
         });
         return avgs;
-    }, [feedbacks]);
+    }, [feedbacks, isMiniAdmin, assignedHostels]);
 
     const leaderboardData = useMemo(() => {
         const groups = {};
-        feedbacks.forEach(f => {
+        feedbacks.filter(f =>
+            !isMiniAdmin || isHostelAllowed(f.hostel)
+        ).forEach(f => {
             if (!f.hostel || !f.messType || !f.rating)
                 return;
             const key = `${f.hostel}_${f.messType}`;
@@ -128,7 +132,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             .sort((a, b) =>
                 Number(b.average) - Number(a.average)
             );
-    }, [feedbacks]);
+    }, [feedbacks, isMiniAdmin, assignedHostels]);
 
     const analyticsData = useMemo(() => {
         const now = new Date();
@@ -139,12 +143,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
         const recentFeedbacks = feedbacks.filter(f => {
             if (!f.date) return false;
+            if (isMiniAdmin && !isHostelAllowed(f.hostel)) return false;
             return new Date(f.date + 'T00:00:00')
                 >= cutoff;
         });
 
         const recentProofs = proofs.filter(p => {
             if (!p.date) return false;
+            if (isMiniAdmin && !isHostelAllowed(p.hostel)) return false;
             return new Date(p.date + 'T00:00:00')
                 >= cutoff;
         });
@@ -397,11 +403,18 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     });
 
     const getHostelOptions = (includeAll = false) => {
+        const hostels = isMiniAdmin
+            ? assignedHostels
+            : (config?.hostels || DEFAULT_HOSTELS);
         const options = [];
         if (includeAll) {
-            options.push({ value: 'ALL', label: 'All Hostels' });
+            options.push({
+                label: 'All', options: [
+                    { value: 'ALL', label: 'All Hostels' }
+                ]
+            });
         }
-        if (config?.hostelGroups?.length > 0) {
+        if (!isMiniAdmin && config?.hostelGroups?.length > 0) {
             options.push({
                 label: "Hostel Groups",
                 options: config.hostelGroups.map(g => ({ value: `GROUP:${g.name}`, label: g.name }))
@@ -409,7 +422,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         }
         options.push({
             label: "Individuals",
-            options: (config?.hostels || DEFAULT_HOSTELS).map(h => ({ value: h, label: h }))
+            options: hostels.map(h => ({ value: h, label: h }))
         });
         return options;
     };
@@ -441,6 +454,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     const assignedHostels =
         userData?.assignedHostels || [];
+
+    const isHostelAllowed = (hostel) => {
+        if (!isMiniAdmin) return true;
+        return assignedHostels.includes(hostel);
+    };
 
     // Live Clock Effect
     useEffect(() => {
@@ -540,10 +558,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 const snap = await getDocs(
                     collection(db, 'artifacts', appId, 'public', 'data', 'checklists')
                 );
-                const all = snap.docs.map(d => ({
-                    id: d.id,
-                    ...d.data()
-                }));
+                const all = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .filter(c =>
+                        !isMiniAdmin ||
+                        isHostelAllowed(c.hostel)
+                    );
                 setChecklistData(all);
 
                 // Calculate missing checklists
@@ -552,7 +572,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     const submitted = all
                         .filter(c => c.date === todayStr && c.submitted)
                         .map(c => `${c.committeeRole}_${c.hostel}`);
-                    const hostels = config?.hostels || DEFAULT_HOSTELS;
+                    const hostels = isMiniAdmin ? assignedHostels : (config?.hostels || DEFAULT_HOSTELS);
                     const missing = [];
                     Object.keys(COMMITTEE_ROLES).forEach(role => {
                         hostels.forEach(hostel => {
@@ -1807,19 +1827,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     // Derived stats
     const stats = React.useMemo(() => {
-        const totalUsers = usersList.length;
-        const students = usersList.filter(u => u.role === 'student').length;
-        const faculty = usersList.filter(u => u.role === 'faculty').length;
-        const pendingUsers = usersList.filter(
+        const relevantUsers = isMiniAdmin
+            ? usersList.filter(u =>
+                isHostelAllowed(u.hostel))
+            : usersList;
+
+        const totalUsers = relevantUsers.length;
+        const students = relevantUsers.filter(u => u.role === 'student').length;
+        const faculty = relevantUsers.filter(u => u.role === 'faculty').length;
+        const pendingUsers = relevantUsers.filter(
             u => !u.approved && u.role !== 'revoked'
         ).length;
 
         // Online = active in last 5 minutes
         const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const onlineUsers = usersList.filter(u => {
+        const onlineUsers = relevantUsers.filter(u => {
             if (!u.lastActive) return false;
             return new Date(u.lastActive) > fiveMinsAgo;
         }).length;
+
+        const relevantFeedbacks = isMiniAdmin
+            ? feedbacks.filter(f => isHostelAllowed(f.hostel))
+            : feedbacks;
+
+        const relevantProofs = isMiniAdmin
+            ? proofs.filter(p => isHostelAllowed(p.hostel))
+            : proofs;
+
+        const relevantReports = isMiniAdmin
+            ? reports.filter(r => isHostelAllowed(r.hostel))
+            : reports;
 
         return {
             totalUsers,
@@ -1827,15 +1864,18 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             students,
             faculty,
             pendingUsers,
-            pendingProofs: proofs.filter(p => !p.status || p.status.toLowerCase() === 'pending').length,
-            pendingReports: reports.filter(r => !r.status || r.status.toLowerCase() === 'pending').length,
-            avgRating: feedbacks.length > 0
-                ? (feedbacks.reduce((acc, f) => acc + (f.rating || 0), 0) / feedbacks.length).toFixed(1)
+            pendingProofs: relevantProofs.filter(p => !p.status || p.status.toLowerCase() === 'pending').length,
+            pendingReports: relevantReports.filter(r => !r.status || r.status.toLowerCase() === 'pending').length,
+            avgRating: relevantFeedbacks.length > 0
+                ? (relevantFeedbacks.reduce((acc, f) => acc + (f.rating || 0), 0) / relevantFeedbacks.length).toFixed(1)
                 : 'N/A'
         };
-    }, [usersList, proofs, feedbacks, reports]);
+    }, [usersList, proofs, feedbacks, reports, isMiniAdmin, assignedHostels]);
 
     const filteredProofs = proofs.filter(p => {
+        if (isMiniAdmin &&
+            !isHostelAllowed(p.hostel))
+            return false;
         const matchesDate = !proofDateFilter || p.date === proofDateFilter;
         const matchesMessType = matchesSelection(p.messType, proofMessTypeFilter, config?.messTypeGroups, 'types');
         const matchesHostel = matchesSelection(p.hostel, proofHostelFilter, config?.hostelGroups, 'hostels');
@@ -1965,6 +2005,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     .includes(q)
             );
         })
+        .filter(u => {
+            if (!isMiniAdmin) return true;
+            return isHostelAllowed(u.hostel);
+        })
         .sort((a, b) =>
             (a.name || '')
                 .localeCompare(b.name || '')
@@ -1980,16 +2024,20 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
-        { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-        { id: 'menus', label: 'Menu Management', icon: Calendar },
+        ...((!isMiniAdmin) ? [
+            { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+            { id: 'menus', label: 'Menu Management', icon: Calendar },
+        ] : []),
         { id: 'notices', label: 'Notices', icon: Megaphone },
         { id: 'feedback', label: 'Feedback', icon: Star },
         { id: 'reports', label: 'Bugs & Suggestions', icon: Bug },
         { id: 'checklists', label: 'Checklists', icon: ClipboardList },
         { id: 'proofs', label: 'Proofs Gallery', icon: ImageIcon },
         { id: 'users', label: 'User Management', icon: Users },
-        { id: 'settings', label: 'Settings', icon: Settings },
+        ...(!isMiniAdmin ? [
+            { id: 'settings', label: 'Settings', icon: Settings },
+        ] : []),
         { id: 'profile', label: 'Profile', icon: User }
     ];
 
@@ -3685,7 +3733,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                         <div className="space-y-4">
                             <h3 className="font-heading font-bold text-[#0D0D0D] dark:text-white tracking-tight text-lg mb-2">Active Notices</h3>
-                            {notices.map(notice => (
+                            {notices.filter(n => {
+                                if (!isMiniAdmin) return true;
+                                if (!n.hostels || n.hostels.includes('ALL'))
+                                    return true;
+                                return n.hostels.some(h =>
+                                    isHostelAllowed(h)
+                                );
+                            }).map(notice => (
                                 <Card key={notice.id} className="flex justify-between items-start border border-zinc-200 dark:border-[#2E7D32]/30 bg-white dark:bg-[#16162A]/50 hover:bg-zinc-50 dark:hover:bg-[#16162A]/80 transition-colors">
                                     <div>
                                         <h4 className="font-heading font-bold text-[#2E7D32] dark:text-[#A78BFA] text-lg tracking-tight">{notice.title}</h4>
@@ -3710,7 +3765,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     </button>
                                 </Card>
                             ))}
-                            {notices.length === 0 && (
+                            {notices.filter(n => {
+                                if (!isMiniAdmin) return true;
+                                if (!n.hostels || n.hostels.includes('ALL'))
+                                    return true;
+                                return n.hostels.some(h =>
+                                    isHostelAllowed(h)
+                                );
+                            }).length === 0 && (
                                 <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-3xl  ">
                                     <Megaphone size={40} className="mx-auto text-zinc-600 mb-4" />
                                     <p className="text-zinc-400 font-medium tracking-wide">No active notices.</p>
@@ -3850,6 +3912,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         ) : (
                             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                                 {reports.filter(r => {
+                                    if (isMiniAdmin && !isHostelAllowed(r.hostel)) return false;
                                     const rDate = r.createdAt?.toDate ? r.createdAt.toDate().toISOString() : '';
                                     const dateStr = rDate.length > 10 ? rDate.slice(0, 10) : rDate;
                                     const matchDate = !feedbackDateFilter || dateStr === feedbackDateFilter;
@@ -4063,6 +4126,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         </div>
 
                         {reports.filter(r => {
+                            if (isMiniAdmin && !isHostelAllowed(r.hostel)) return false;
                             if (reportFilter === 'pending')
                                 return !r.status ||
                                     r.status.toLowerCase() === 'pending';
