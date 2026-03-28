@@ -467,10 +467,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const fetchAllUsers = async () => {
         setIsLoadingUsers(true);
         try {
-            const snap = await getDocs(
-                collection(db, 'artifacts',
-                    appId, 'users')
-            );
+            const constraints = [];
+            if (isMiniAdmin) {
+                constraints.push(where('hostel', 'in', assignedHostels));
+            }
+            const q = constraints.length > 0
+                ? query(collection(db, 'artifacts', appId, 'users'), ...constraints)
+                : collection(db, 'artifacts', appId, 'users');
+            const snap = await getDocs(q);
             const list = snap.docs.map(d => ({
                 id: d.id, ...d.data()
             }));
@@ -499,6 +503,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         setIsLoadingProofs(true);
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'proofs'),
+            ...(isMiniAdmin ? [where('hostel', 'in', assignedHostels)] : []),
             orderBy('createdAt', 'desc'),
             limit(200)
         );
@@ -510,13 +515,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingProofs(false);
         });
         return () => unsub();
-    }, [user?.uid]);
+    }, [user?.uid, isMiniAdmin, assignedHostels]);
 
     // Fetch feedbacks (ratings) - REMOVE the tab guard
     useEffect(() => {
         setIsLoadingFeedbacks(true);
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'ratings'),
+            ...(isMiniAdmin ? [where('hostel', 'in', assignedHostels)] : []),
             orderBy('createdAt', 'desc'),
             limit(200)
         );
@@ -528,12 +534,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingFeedbacks(false);
         });
         return () => unsub();
-    }, [user?.uid]);
+    }, [user?.uid, isMiniAdmin, assignedHostels]);
 
     useEffect(() => {
         setIsLoadingReports(true);
         const q = query(
             collection(db, 'artifacts', appId, 'public', 'data', 'feedback_reports'),
+            ...(isMiniAdmin ? [where('hostel', 'in', assignedHostels)] : []),
             orderBy('createdAt', 'desc'),
             limit(200)
         );
@@ -545,7 +552,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingReports(false);
         });
         return () => unsub();
-    }, [user?.uid]);
+    }, [user?.uid, isMiniAdmin, assignedHostels]);
 
     // Fetch checklists
     useEffect(() => {
@@ -553,15 +560,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const fetchChecklists = async () => {
             setIsLoadingChecklists(true);
             try {
-                const snap = await getDocs(
-                    collection(db, 'artifacts', appId, 'public', 'data', 'checklists')
-                );
-                const all = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() }))
-                    .filter(c =>
-                        !isMiniAdmin ||
-                        isHostelAllowed(c.hostel)
-                    );
+                const constraints = [];
+                if (isMiniAdmin) {
+                    constraints.push(where('hostel', 'in', assignedHostels));
+                }
+                const q = constraints.length > 0
+                    ? query(collection(db, 'artifacts', appId, 'public', 'data', 'checklists'), ...constraints)
+                    : collection(db, 'artifacts', appId, 'public', 'data', 'checklists');
+                const snap = await getDocs(q);
+                const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 setChecklistData(all);
 
                 // Calculate missing checklists
@@ -594,7 +601,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingChecklists(false);
         };
         fetchChecklists();
-    }, [activeTab, checklistDateFilter, checklistCommitteeFilter, checklistHostelFilter, config]);
+    }, [activeTab, checklistDateFilter, checklistCommitteeFilter, checklistHostelFilter, config, isMiniAdmin, assignedHostels]);
 
     // Update time every minute for greeting
     useEffect(() => {
@@ -610,8 +617,20 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             const allNotices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             const today = new Date().toLocaleDateString('en-CA');
             const validNotices = allNotices.filter(notice => {
-                if (!notice.expiresAt) return true;
-                return notice.expiresAt >= today;
+                // Check expiry
+                if (notice.expiresAt && notice.expiresAt < today) return false;
+                // Filter for mini admin - only show notices sent to their assigned hostels
+                if (isMiniAdmin) {
+                    const noticeHostels = notice.targetHostels || [];
+                    if (noticeHostels.includes('ALL')) return false; // Mini admin shouldn't see "Broadcast All"
+                    // Check if any of the notice's hostels are in mini admin's assigned hostels
+                    return noticeHostels.some(h => 
+                        assignedHostels.some(ah => 
+                            String(ah).trim().toUpperCase() === String(h).trim().toUpperCase()
+                        )
+                    );
+                }
+                return true;
             });
             setNotices(validNotices);
             setIsLoadingNotices(false);
@@ -620,7 +639,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             setIsLoadingNotices(false);
         });
         return () => unsub();
-    }, [user]);
+    }, [user, isMiniAdmin, assignedHostels]);
 
     useEffect(() => {
         if (activeTab !== 'menus') return;
@@ -1441,12 +1460,26 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             // Flatten target hostels from selections
             let finalHostels = [];
             if (noticeHostels.includes('ALL')) {
-                finalHostels = ['ALL'];
+                finalHostels = isMiniAdmin ? assignedHostels : ['ALL'];
             } else {
                 noticeHostels.forEach(h => {
                     finalHostels = [...finalHostels, ...getTargetHostels(String(h).trim().toUpperCase())];
                 });
                 finalHostels = [...new Set(finalHostels.map(x => String(x).trim().toUpperCase()))];
+            }
+
+            // SECURITY: Mini admin can only send to assigned hostels
+            if (isMiniAdmin) {
+                const assignedHostelsUppercase = assignedHostels.map(h => String(h).trim().toUpperCase());
+                const unauthorizedHostels = finalHostels.filter(h => !assignedHostelsUppercase.includes(h));
+                if (unauthorizedHostels.length > 0) {
+                    toast.error(`Unauthorized: You can only send to your assigned hostels (${assignedHostels.join(', ')})`);
+                    return;
+                }
+                if (finalHostels.length === 0) {
+                    toast.error('Select at least one hostel');
+                    return;
+                }
             }
 
             // Flatten target mess types from selections
@@ -2570,7 +2603,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             toast.error('No users to export.');
             return;
         }
-        const data = usersList.map((u, i) => ({
+        const data = filteredUsers.map((u, i) => ({
             'S.No': i + 1,
             'Name': u.name || '',
             'Email': u.email || '',
@@ -2597,6 +2630,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     };
 
     const renderContent = () => {
+        // SECURITY: Mini admin role restrictions
+        if (isMiniAdmin && ['analytics', 'leaderboard', 'menus', 'settings'].includes(activeTab)) {
+            setActiveTab('dashboard');
+            return null;
+        }
+
         switch (activeTab) {
             case 'analytics':
                 return (
@@ -3563,9 +3602,13 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 );
 
             case 'notices': {
-                const allHostels = (config?.hostels || DEFAULT_HOSTELS);
+                const allHostels = isMiniAdmin 
+                    ? assignedHostels  // Mini admin can only see their assigned hostels
+                    : (config?.hostels || DEFAULT_HOSTELS);
                 const allMessTypes = (config?.messTypes || DEFAULT_MESS_TYPES);
-                const allGroups = (config?.hostelGroups || []);
+                const allGroups = isMiniAdmin
+                    ? []  // Mini admin cannot use groups - only assigned hostels
+                    : (config?.hostelGroups || []);
 
                 return (
                     <div className="space-y-8 max-w-4xl">
@@ -3610,26 +3653,30 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     <div>
                                         <div className="flex justify-between items-center mb-4">
                                             <label className="block text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em]">Target Hostels</label>
-                                            <button
-                                                onClick={() => setNoticeHostels(['ALL'])}
-                                                className="text-[10px] font-black text-[#2E7D32] dark:text-[#A78BFA] uppercase tracking-widest hover:underline"
-                                            >
-                                                Broadcast to All
-                                            </button>
+                                            {!isMiniAdmin && (
+                                                <button
+                                                    onClick={() => setNoticeHostels(['ALL'])}
+                                                    className="text-[10px] font-black text-[#2E7D32] dark:text-[#A78BFA] uppercase tracking-widest hover:underline"
+                                                >
+                                                    Broadcast to All
+                                                </button>
+                                            )}
                                         </div>
                                         <div className="flex flex-wrap gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    if (noticeHostels.includes('ALL')) return;
-                                                    setNoticeHostels(['ALL']);
-                                                }}
-                                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${noticeHostels.includes('ALL')
-                                                    ? 'bg-[#2E7D32] text-white border-[#2E7D32] shadow-md shadow-[#2E7D32]/20'
-                                                    : 'bg-white dark:bg-white/5 text-zinc-500 border-zinc-200 dark:border-white/10 hover:border-[#2E7D32]/30'
-                                                    }`}
-                                            >
-                                                All Hostels
-                                            </button>
+                                            {!isMiniAdmin && (
+                                                <button
+                                                    onClick={() => {
+                                                        if (noticeHostels.includes('ALL')) return;
+                                                        setNoticeHostels(['ALL']);
+                                                    }}
+                                                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${noticeHostels.includes('ALL')
+                                                        ? 'bg-[#2E7D32] text-white border-[#2E7D32] shadow-md shadow-[#2E7D32]/20'
+                                                        : 'bg-white dark:bg-white/5 text-zinc-500 border-zinc-200 dark:border-white/10 hover:border-[#2E7D32]/30'
+                                                        }`}
+                                                >
+                                                    All Hostels
+                                                </button>
+                                            )}
                                             {allGroups.map(group => (
                                                 <button
                                                     key={group.name}
@@ -3731,14 +3778,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                         <div className="space-y-4">
                             <h3 className="font-heading font-bold text-[#0D0D0D] dark:text-white tracking-tight text-lg mb-2">Active Notices</h3>
-                            {notices.filter(n => {
-                                if (!isMiniAdmin) return true;
-                                if (!n.hostels || n.hostels.includes('ALL'))
-                                    return true;
-                                return n.hostels.some(h =>
-                                    isHostelAllowed(h)
-                                );
-                            }).map(notice => (
+                            {notices.map(notice => (
                                 <Card key={notice.id} className="flex justify-between items-start border border-zinc-200 dark:border-[#2E7D32]/30 bg-white dark:bg-[#16162A]/50 hover:bg-zinc-50 dark:hover:bg-[#16162A]/80 transition-colors">
                                     <div>
                                         <h4 className="font-heading font-bold text-[#2E7D32] dark:text-[#A78BFA] text-lg tracking-tight">{notice.title}</h4>
@@ -3763,14 +3803,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     </button>
                                 </Card>
                             ))}
-                            {notices.filter(n => {
-                                if (!isMiniAdmin) return true;
-                                if (!n.hostels || n.hostels.includes('ALL'))
-                                    return true;
-                                return n.hostels.some(h =>
-                                    isHostelAllowed(h)
-                                );
-                            }).length === 0 && (
+                            {notices.length === 0 && (
                                 <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-3xl  ">
                                     <Megaphone size={40} className="mx-auto text-zinc-600 mb-4" />
                                     <p className="text-zinc-400 font-medium tracking-wide">No active notices.</p>
@@ -6141,26 +6174,25 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             className="p-2 bg-[#F7F7F7] dark:bg-[#1E1E35] border border-[#EEEEEE] dark:border-[#1E1E2E] rounded-lg text-[#6B6B6B] dark:text-[#8B8BAD] hover:text-[#2E7D32] dark:hover:text-[#7C3AED] transition-colors">
                             <RefreshCw size={15} />
                         </button>
-                        <Badge variant={isSuperAdmin
-                            ? 'super_admin'
-                            : isMiniAdmin ? 'warning' : 'admin'}>
-                            {isSuperAdmin
-                                ? <><Crown size={11}
-                                    className="mr-1 inline" />
-                                    SUPER ADMIN</>
-                                : isMiniAdmin
-                                ? <>
-                                    <Shield size={11}
-                                        className="mr-1 inline" />
+                        <Badge variant={isSuperAdmin ? 'super_admin' : isMiniAdmin ? 'warning' : 'admin'}>
+                            {isSuperAdmin ? (
+                                <>
+                                    <Crown size={11} className="mr-1 inline" />
+                                    SUPER ADMIN
+                                </>
+                            ) : isMiniAdmin ? (
+                                <>
+                                    <Shield size={11} className="mr-1 inline" />
                                     MINI ADMIN
                                     {assignedHostels.length > 0 && (
-                                        <span className="ml-1
-                                            opacity-70 text-[9px]">
+                                        <span className="ml-1 opacity-70 text-[9px]">
                                             {assignedHostels.join(', ')}
                                         </span>
                                     )}
-                                  </>
-                                : 'ADMIN'}
+                                </>
+                            ) : (
+                                'ADMIN'
+                            )}
                         </Badge>
                     </div>
                 </header>

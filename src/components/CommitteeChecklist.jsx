@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, appId } from '../lib/firebase';
 import {
     doc, onSnapshot, setDoc, updateDoc, serverTimestamp, getDocs, collection
@@ -43,17 +43,26 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         useState(false);
     const [historyTab, setHistoryTab] =
         useState('attendance');
+    
+    // Default to full current month (1st to today or end of month)
+    const getDefaultHistoryDates = () => {
+        const today = new Date();
+        const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+        const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        const effectiveLastDay = today < lastDay ? today : lastDay;
+        
+        return {
+            from: firstDay.toLocaleDateString('en-CA'),
+            to: effectiveLastDay.toLocaleDateString('en-CA')
+        };
+    };
+    
+    const defaultDates = getDefaultHistoryDates();
+    
     const [historyDateFrom, setHistoryDateFrom] =
-        useState(() => {
-            const d = new Date();
-            return `${d.getFullYear()}-${
-                String(d.getMonth() + 1)
-                .padStart(2, '0')}-01`;
-        });
+        useState(defaultDates.from);
     const [historyDateTo, setHistoryDateTo] =
-        useState(
-            new Date().toLocaleDateString('en-CA')
-        );
+        useState(defaultDates.to);
 
     const dailyDocId =
         `${committeeRole}_${hostel}_${todayStr}`;
@@ -394,39 +403,98 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         setSaving(false);
     };
 
-    const fetchHistory = async () => {
+    const fetchHistory = () => {
         setHistoryLoading(true);
         try {
-            const snap = await getDocs(
+            // Ensure we have valid date range (use full month if not specified)
+            const fromDate = historyDateFrom || defaultDates.from;
+            const toDate = historyDateTo || defaultDates.to;
+            
+            // Real-time listener for history data
+            const unsubscribe = onSnapshot(
                 collection(db, 'artifacts', appId,
-                    'public', 'data', 'checklists')
+                    'public', 'data', 'checklists'),
+                (snap) => {
+                    const docs = snap.docs
+                        .map(d => ({
+                            id: d.id, ...d.data()
+                        }))
+                        .filter(d =>
+                            d.committeeRole === committeeRole
+                            && d.hostel === hostel
+                            && d.submitted === true
+                            && d.date >= fromDate
+                            && d.date <= toDate
+                        )
+                        .sort((a, b) =>
+                            a.date.localeCompare(b.date)
+                        );
+                    setHistoryData(docs);
+                    setHistoryLoading(false);
+                },
+                (e) => {
+                    console.error('History fetch failed:', e);
+                    toast.error('Failed to load history.');
+                    setHistoryLoading(false);
+                }
             );
-            const docs = snap.docs
-                .map(d => ({
-                    id: d.id, ...d.data()
-                }))
-                .filter(d =>
-                    d.committeeRole === committeeRole
-                    && d.hostel === hostel
-                    && d.submitted === true
-                    && d.date >= historyDateFrom
-                    && d.date <= historyDateTo
-                )
-                .sort((a, b) =>
-                    a.date.localeCompare(b.date)
-                );
-            setHistoryData(docs);
+            return unsubscribe;
         } catch (e) {
             console.error('History fetch failed:', e);
             toast.error('Failed to load history.');
+            setHistoryLoading(false);
+            return () => {};
         }
-        setHistoryLoading(false);
     };
 
+    // Normalize date to YYYY-MM-DD format
+    const normalizeDate = (date) => {
+        if (!date) return '';
+        if (typeof date === 'string') return date;
+        if (date instanceof Date) return date.toLocaleDateString('en-CA');
+        return String(date);
+    };
+
+    // Generate array of ALL dates - MUST use useMemo to update when historyData changes
+    const historyDates = useMemo(() => {
+        const dateSet = new Set();
+        
+        // Add all dates from the range
+        const currentDate = new Date(historyDateFrom);
+        const endDate = new Date(historyDateTo);
+        while (currentDate <= endDate) {
+            dateSet.add(currentDate.toLocaleDateString('en-CA'));
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Add actual dates from historyData to ensure we have all of them
+        if (historyData && historyData.length > 0) {
+            historyData.forEach(doc => {
+                const normalizedDate = normalizeDate(doc.date);
+                if (normalizedDate) dateSet.add(normalizedDate);
+            });
+        }
+        
+        const dates = Array.from(dateSet).sort();
+        return dates;
+    }, [historyData, historyDateFrom, historyDateTo]);
+
     useEffect(() => {
-        if (showHistory) fetchHistory();
+        let unsubscribe;
+        if (showHistory) {
+            unsubscribe = fetchHistory();
+        }
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [showHistory, historyDateFrom,
         historyDateTo]);
+
+    // Manual refresh function
+    const handleRefreshHistory = () => {
+        setHistoryLoading(true);
+        fetchHistory();
+    };
 
     const exportHistoryCSV = () => {
         if (historyData.length === 0) {
@@ -436,8 +504,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
 
         const items = checklist?.daily
             || checklist?.monthly || [];
-        const dates = historyData
-            .map(d => d.date);
+        const dates = historyDates;
         const meals = checklist?.daily
             ? ['Breakfast', 'Lunch', 'Dinner']
             : ['Monthly'];
@@ -450,7 +517,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             };
             dates.forEach(date => {
                 const doc = historyData
-                    .find(d => d.date === date);
+                    .find(d => normalizeDate(d.date) === normalizeDate(date));
                 meals.forEach(meal => {
                     const entry =
                         meal === 'Monthly'
@@ -475,7 +542,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             };
             dates.forEach(date => {
                 const doc = historyData
-                    .find(d => d.date === date);
+                    .find(d => normalizeDate(d.date) === normalizeDate(date));
                 meals.forEach(meal => {
                     const entry =
                         meal === 'Monthly'
@@ -496,7 +563,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         const sessionRows = [];
         dates.forEach(date => {
             const doc = historyData
-                .find(d => d.date === date);
+                .find(d => normalizeDate(d.date) === normalizeDate(date));
             if (doc?.sessionRemarks) {
                 meals.forEach(meal => {
                     const remark =
@@ -1099,6 +1166,22 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                     </p>
                                 </div>
                                 <div className="flex gap-2">
+                                    <button
+                                        onClick={handleRefreshHistory}
+                                        disabled={historyLoading}
+                                        className="flex items-center gap-2
+                                            px-4 py-2 rounded-xl
+                                            text-xs font-black
+                                            bg-blue-500/10
+                                            text-blue-600
+                                            dark:text-blue-400
+                                            hover:bg-blue-500/20
+                                            disabled:opacity-50
+                                            transition-colors"
+                                    >
+                                        <Clock4 size={14} />
+                                        Refresh
+                                    </button>
                                     {historyData.length > 0 && (
                                         <button
                                             onClick={exportHistoryCSV}
@@ -1223,161 +1306,233 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                 >
                                     Remarks
                                 </button>
+                                <button
+                                    onClick={() =>
+                                        setHistoryTab('session')
+                                    }
+                                    className={`px-4 py-2 rounded-xl
+                                        text-xs font-black uppercase
+                                        tracking-widest transition-all
+                                        ${historyTab === 'session'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/20'
+                                        }`}
+                                >
+                                    Session Remarks
+                                </button>
                             </div>
 
                             {/* Data Grid Table */}
-                            <div className="overflow-x-auto">
+                            <div className="mt-6">
                                 {historyLoading ? (
-                                    <div className="py-8 text-center">
-                                        <p className="text-zinc-500">
-                                            Loading history...
+                                    <div className="bg-white dark:bg-[#16162A] rounded-2xl p-12 text-center border border-zinc-200 dark:border-white/10 shadow-sm">
+                                        <div className="inline-block animate-spin mb-3">
+                                            <Clock4 size={24} className="text-primary" />
+                                        </div>
+                                        <p className="text-zinc-500 dark:text-zinc-400 font-medium">
+                                            Loading history data...
                                         </p>
                                     </div>
+                                ) : historyTab === 'session' ? (
+                                    // Session Remarks View - show each meal session with remarks
+                                    <div className="bg-white dark:bg-[#16162A] rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm overflow-hidden">
+                                        <div className="overflow-auto max-h-[65vh]">
+                                            <table className="w-full text-sm border-collapse">
+                                                <thead className="sticky top-0 z-20">
+                                                    <tr className="bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-white/5 dark:to-white/10 border-b-2 border-zinc-200 dark:border-white/20">
+                                                        <th className="text-left px-5 py-4 font-black text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-200 min-w-[150px] border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-30 bg-zinc-50 dark:bg-white/5">
+                                                            📅 Date
+                                                        </th>
+                                                        <th className="text-center px-4 py-4 font-black text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-200 min-w-[80px] bg-blue-50 dark:bg-blue-500/10 border-r border-zinc-200 dark:border-white/10">
+                                                            Session
+                                                        </th>
+                                                        <th className="text-left px-5 py-4 font-black text-xs uppercase tracking-wider text-zinc-600 dark:text-zinc-300 bg-zinc-50 dark:bg-white/5">
+                                                            Remarks
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {historyDates.map((date, dateIdx) => {
+                                                        const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
+                                                        const sessionRemarks = doc?.sessionRemarks || {};
+                                                        const meals = ['Breakfast', 'Lunch', 'Dinner'];
+                                                        const remarksForDate = meals.filter(meal => sessionRemarks[meal]);
+                                                        
+                                                        // If no remarks for this date, show single row with dashes
+                                                        if (remarksForDate.length === 0) {
+                                                            return (
+                                                                <tr key={date} className={`border-b border-zinc-100 dark:border-white/5 ${
+                                                                    dateIdx % 2 === 0 
+                                                                        ? 'bg-white dark:bg-[#16162A]' 
+                                                                        : 'bg-zinc-50/40 dark:bg-white/[0.02]'
+                                                                } hover:bg-blue-50 dark:hover:bg-blue-500/10`}>
+                                                                    <td className="px-5 py-4 font-bold border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-10 bg-inherit min-w-[150px]">
+                                                                        <div className="text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase">
+                                                                            {new Date(date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                                                            {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-4 text-center bg-blue-50 dark:bg-blue-500/10">
+                                                                        <span className="text-zinc-400">—</span>
+                                                                    </td>
+                                                                    <td className="px-5 py-4 text-left">
+                                                                        <span className="text-sm text-zinc-600 dark:text-zinc-300">—</span>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        }
+                                                        
+                                                        // Show multiple rows - one per meal with remarks
+                                                        return remarksForDate.map((meal, mealIdx) => (
+                                                            <tr key={`${date}-${meal}`} className={`border-b border-zinc-100 dark:border-white/5 ${
+                                                                (dateIdx * 3 + mealIdx) % 2 === 0 
+                                                                    ? 'bg-white dark:bg-[#16162A]' 
+                                                                    : 'bg-zinc-50/40 dark:bg-white/[0.02]'
+                                                            } hover:bg-blue-50 dark:hover:bg-blue-500/10`}>
+                                                                {mealIdx === 0 && (
+                                                                    <td rowSpan={remarksForDate.length} className="px-5 py-4 font-bold border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-10 bg-inherit min-w-[150px]">
+                                                                        <div className="text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase">
+                                                                            {new Date(date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}
+                                                                        </div>
+                                                                        <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                                                            {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+                                                                        </div>
+                                                                    </td>
+                                                                )}
+                                                                <td className={`px-4 py-3 text-center font-bold text-xs uppercase tracking-wider ${
+                                                                    meal === 'Breakfast' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+                                                                    meal === 'Lunch' ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400' :
+                                                                    'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                                                                }`}>
+                                                                    {meal.slice(0, 1)}
+                                                                </td>
+                                                                <td className="px-5 py-3 text-left">
+                                                                    <span className="text-sm text-zinc-600 dark:text-zinc-300 break-words">
+                                                                        {sessionRemarks[meal] || '—'}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ));
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 ) : historyData.length === 0 ? (
-                                    <div className="py-8 text-center">
-                                        <p className="text-zinc-500">
-                                            No submissions found for
-                                            selected date range
+                                    <div className="bg-white dark:bg-[#16162A] rounded-2xl p-12 text-center border border-zinc-200 dark:border-white/10 shadow-sm">
+                                        <ClipboardList size={32} className="text-zinc-300 dark:text-zinc-600 mx-auto mb-3" />
+                                        <p className="text-zinc-500 dark:text-zinc-400 font-medium">
+                                            No submissions found for the selected date range
+                                        </p>
+                                        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-2">
+                                            Try adjusting your date filters
                                         </p>
                                     </div>
                                 ) : (
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="border-b
-                                                border-zinc-200
-                                                dark:border-white/10">
-                                                <th className="text-left
-                                                    px-4 py-3 font-black
-                                                    text-xs uppercase
-                                                    tracking-widest
-                                                    text-zinc-600
-                                                    dark:text-zinc-400">
-                                                    Date
-                                                </th>
-                                                <th className="text-left
-                                                    px-4 py-3 font-black
-                                                    text-xs uppercase
-                                                    tracking-widest
-                                                    text-zinc-600
-                                                    dark:text-zinc-400">
-                                                    Meal / Item
-                                                </th>
-                                                {historyTab ===
-                                                    'attendance' ? (
-                                                    <>
-                                                        <th className="text-left
-                                                            px-4 py-3
-                                                            font-black
-                                                            text-xs uppercase
-                                                            tracking-widest
-                                                            text-zinc-600
-                                                            dark:text-zinc-400">
-                                                            Status
+                                    <div className="bg-white dark:bg-[#16162A] rounded-2xl border border-zinc-200 dark:border-white/10 shadow-sm overflow-hidden">
+                                        <div className="overflow-auto max-h-[65vh]">
+                                            <table className="w-full text-sm border-collapse">
+                                                {/* Header 1: Item IDs */}
+                                                <thead className="sticky top-0 z-20">
+                                                    <tr className="bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-white/5 dark:to-white/10 border-b border-zinc-200 dark:border-white/20">
+                                                        <th className="text-left px-5 py-3 font-black text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-200 border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-30 bg-zinc-50 dark:bg-white/5 min-w-[100px]">
+                                                            📅 Date
                                                         </th>
-                                                        <th className="text-left
-                                                            px-4 py-3
-                                                            font-black
-                                                            text-xs uppercase
-                                                            tracking-widest
-                                                            text-zinc-600
-                                                            dark:text-zinc-400">
-                                                            Remarks
-                                                        </th>
-                                                    </>
-                                                ) : (
-                                                    <th className="text-left
-                                                        px-4 py-3
-                                                        font-black
-                                                        text-xs uppercase
-                                                        tracking-widest
-                                                        text-zinc-600
-                                                        dark:text-zinc-400">
-                                                        Session Remarks
-                                                    </th>
-                                                )}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {historyData.map(
-                                                (
-                                                    record,
-                                                    idx
-                                                ) => (
-                                                    <tr key={idx}
-                                                        className="border-b
-                                                            border-zinc-100
-                                                            dark:border-white/5
-                                                            hover:bg-zinc-50
-                                                            dark:hover:bg-white/5
-                                                            transition-colors">
-                                                        <td className="px-4
-                                                            py-3 text-xs
-                                                            font-mono
-                                                            text-zinc-600
-                                                            dark:text-zinc-400">
-                                                            {new Date(record.date).toLocaleString()}
-                                                        </td>
-                                                        <td className="px-4
-                                                            py-3 text-xs
-                                                            font-medium
-                                                            text-dark
-                                                            dark:text-white">
-                                                            {record
-                                                                .mealOrItem}
-                                                        </td>
-                                                        {historyTab ===
-                                                            'attendance'
-                                                            ? (
-                                                                <>
-                                                                    <td className="px-4
-                                                                        py-3">
-                                                                        <span
-                                                                            className={`px-3 py-1 rounded-full text-xs font-black ${record.status === '✓' ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-300' : 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-300'}`}
-                                                                        >
-                                                                            {record
-                                                                                .status
-                                                                                === '✓'
-                                                                                ? 'Completed'
-                                                                                : 'Not Completed'}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-4
-                                                                        py-3
-                                                                        text-xs
-                                                                        text-zinc-600
-                                                                        dark:text-zinc-400
-                                                                        max-w-xs
-                                                                        truncate">
-                                                                        {record
-                                                                            .remarks
-                                                                            ||
-                                                                            '-'}
-                                                                    </td>
-                                                                </>
-                                                            ) : (
-                                                                <td className="px-4
-                                                                    py-3 text-xs
-                                                                    text-zinc-600
-                                                                    dark:text-zinc-400
-                                                                    max-w-xs
-                                                                    truncate">
-                                                                    {typeof record
-                                                                        .sessionRemarks ===
-                                                                        'object'
-                                                                        ? Object.values(record
-                                                                            .sessionRemarks)
-                                                                            .filter(Boolean)
-                                                                            .join(' | ')
-                                                                        : (record
-                                                                            .sessionRemarks
-                                                                            || '-')}
-                                                                </td>
-                                                            )}
+                                                        {checklist?.daily?.map(item => (
+                                                            <th key={item.id} colSpan="3" className="text-center px-3 py-3 font-black text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-200 bg-zinc-100 dark:bg-white/10 border-l border-r border-zinc-200 dark:border-white/20">
+                                                                {item.id}
+                                                            </th>
+                                                        ))}
                                                     </tr>
-                                                )
-                                            )}
-                                        </tbody>
-                                    </table>
+                                                    {/* Header 2: Meal Types (B, L, D) */}
+                                                    <tr className="bg-zinc-50 dark:bg-white/5 border-b-2 border-zinc-200 dark:border-white/20">
+                                                        <th className="text-left px-5 py-2 font-black text-xs text-zinc-500 dark:text-zinc-400 border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-30 bg-zinc-50 dark:bg-white/5"></th>
+                                                        {checklist?.daily?.map(item => (
+                                                            <React.Fragment key={`${item.id}-meals`}>
+                                                                <th className="text-center px-2 py-2 font-bold text-xs text-zinc-600 dark:text-zinc-300 bg-blue-50 dark:bg-blue-500/10 border-r border-zinc-200 dark:border-white/10">B</th>
+                                                                <th className="text-center px-2 py-2 font-bold text-xs text-zinc-600 dark:text-zinc-300 bg-green-50 dark:bg-green-500/10 border-r border-zinc-200 dark:border-white/10">L</th>
+                                                                <th className="text-center px-2 py-2 font-bold text-xs text-zinc-600 dark:text-zinc-300 bg-orange-50 dark:bg-orange-500/10 border-r border-zinc-200 dark:border-white/10">D</th>
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                {/* Table Body: Dates as Rows */}
+                                                <tbody>
+                                                    {historyDates.map((date, dateIdx) => (
+                                                        <tr key={date} className={`border-b border-zinc-100 dark:border-white/5 ${
+                                                            dateIdx % 2 === 0 
+                                                                ? 'bg-white dark:bg-[#16162A]' 
+                                                                : 'bg-zinc-50/40 dark:bg-white/[0.02]'
+                                                        } hover:bg-blue-50 dark:hover:bg-blue-500/10`}>
+                                                            {/* Date Column */}
+                                                            <td className="px-5 py-3 font-bold border-r-2 border-zinc-300 dark:border-white/20 sticky left-0 z-10 bg-inherit min-w-[100px]">
+                                                                <div className="text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase">
+                                                                    {new Date(date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}
+                                                                </div>
+                                                                <div className="text-[10px] text-zinc-400 dark:text-zinc-500">
+                                                                    {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+                                                                </div>
+                                                            </td>
+                                                            {/* Status Cells for Each Item + Meal */}
+                                                            {checklist?.daily?.map(item => {
+                                                                const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
+                                                                const entry = doc?.items?.[item.id];
+                                                                
+                                                                const meals = ['Breakfast', 'Lunch', 'Dinner'];
+                                                                const mealStatuses = {};
+                                                                
+                                                                if (entry) {
+                                                                    meals.forEach(meal => {
+                                                                        const mealData = entry[meal];
+                                                                        // Always initialize meal data, even if empty, to capture remarks
+                                                                        mealStatuses[meal] = {
+                                                                            status: mealData?.status || '',
+                                                                            remarks: mealData?.remarks || ''
+                                                                        };
+                                                                    });
+                                                                }
+                                                                
+                                                                return (
+                                                                    <React.Fragment key={`${item.id}-${date}`}>
+                                                                        {meals.map(meal => {
+                                                                            const data = mealStatuses[meal];
+                                                                            return (
+                                                                                <td key={`${item.id}-${meal}-${date}`} className={`px-2 py-3 text-center border-r border-zinc-100 dark:border-white/5 align-middle ${
+                                                                                    meal === 'Breakfast' ? 'bg-blue-50 dark:bg-blue-500/5' :
+                                                                                    meal === 'Lunch' ? 'bg-green-50 dark:bg-green-500/5' :
+                                                                                    'bg-orange-50 dark:bg-orange-500/5'
+                                                                                }`}>
+                                                                                    {historyTab === 'attendance' ? (
+                                                                                        <div className="text-2xl font-black leading-none">
+                                                                                            {data?.status === '✓' ? (
+                                                                                                <span className="text-emerald-500">✓</span>
+                                                                                            ) : data?.status === '✗' ? (
+                                                                                                <span className="text-red-500">✗</span>
+                                                                                            ) : (
+                                                                                                <span className="text-zinc-300 dark:text-zinc-600">–</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="min-h-[60px] flex items-center justify-center">
+                                                                                            <span className="text-[10px] text-zinc-600 dark:text-zinc-400 max-w-[70px] line-clamp-2 break-words">
+                                                                                                {data?.remarks || '—'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </td>
+                                                                            );
+                                                                        })}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </Card>
