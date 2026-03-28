@@ -2009,8 +2009,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 return u.role === 'faculty';
             if (userFilter === 'admins')
                 return u.role === 'admin' ||
-                    u.role === 'super_admin' ||
-                    u.role === 'mini_admin';
+                    u.role === 'super_admin';
+            if (userFilter === 'mini_admin')
+                return u.role === 'mini_admin';
             return true;
         })
         .filter(u => {
@@ -4815,7 +4816,8 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     { id: 'revoked', label: 'Revoked' },
                                     { id: 'students', label: 'Students' },
                                     { id: 'faculty', label: 'Faculty' },
-                                    { id: 'admins', label: 'Admins' }
+                                    { id: 'admins', label: 'Admins' },
+                                    { id: 'mini_admin', label: 'Mini Admins' }
                                 ].map(f => (
                                     <button
                                         key={f.id}
@@ -4863,6 +4865,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         <tr className="border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-black/20">
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest whitespace-nowrap">Name / Email</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Role</th>
+                                            <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest hidden md:table-cell">Assigned Hostels</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400 uppercase tracking-widest hidden md:table-cell">Location</th>
                                             <th className="p-5 text-xs font-bold text-zinc-400
                                                 uppercase tracking-widest hidden lg:table-cell">
@@ -4883,6 +4886,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                     <Badge variant={u.role || 'student'}>
                                                         {(u.role || 'Unassigned').replace('_', ' ')}
                                                     </Badge>
+                                                </td>
+                                                <td className="p-5 hidden md:table-cell">
+                                                    {u.role === 'mini_admin' && u.assignedHostels && u.assignedHostels.length > 0 ? (
+                                                        <span className="text-sm font-semibold text-[#2E7D32] dark:text-[#7C3AED] bg-[#2E7D32]/10 dark:bg-[#7C3AED]/10 px-3 py-1 rounded-lg whitespace-nowrap">
+                                                            {u.assignedHostels.join(', ')}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-sm font-semibold text-zinc-400">-</span>
+                                                    )}
                                                 </td>
                                                 <td className="p-5 hidden md:table-cell">
                                                     <span className="text-sm font-semibold text-zinc-300">
