@@ -15,7 +15,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { InstallAppModal } from './components/ui/InstallAppModal';
 import { LoadingScreen } from './components/ui/LoadingScreen';
 import { SplashScreen } from './components/ui/SplashScreen';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
