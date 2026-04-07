@@ -1125,6 +1125,7 @@ Keep the health tip short, practical and encouraging.`;
                                 </div>
                             )}
                             <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                            <div className="w-screen -mx-4 sm:-mx-6 md:-mx-8 h-2 bg-primary/10 dark:bg-primary/5" />
                             <MenuGrid
                                 menu={menu}
                                 isLoading={isLoadingMenu}
@@ -1150,6 +1151,7 @@ Keep the health tip short, practical and encouraging.`;
                 {activeTab === 'feedback' && (
                     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fade-in mt-4 pb-24">
                         <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                        <div className="w-screen -mx-4 sm:-mx-6 md:-mx-8 h-2 bg-primary/10 dark:bg-primary/5" />
                         <Card>
                             <h3 className="text-xl font-heading font-semibold text-dark dark:text-white mb-6 tracking-tight flex items-center justify-between">
                                 <span className="flex items-center gap-3">
