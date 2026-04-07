@@ -1148,6 +1148,15 @@ Keep the health tip short, practical and encouraging.`;
                     </div>
                 )}
 
+                {activeTab === 'foodlimits' && (
+                    <div className="w-full max-w-4xl mx-auto animate-fade-in mt-4 pb-24">
+                        <FoodLimitsView 
+                            foodLimits={config?.foodLimits} 
+                            theme={theme} 
+                        />
+                    </div>
+                )}
+
                 {activeTab === 'feedback' && (
                     <div className="w-full max-w-4xl mx-auto space-y-6 animate-fade-in mt-4 pb-24">
                         <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
@@ -1986,6 +1995,7 @@ Keep the health tip short, practical and encouraging.`;
                 }}>
                 {[
                     { id: 'menu', icon: Utensils, label: 'Menu' },
+                    ...(config?.foodLimits ? [{ id: 'foodlimits', icon: FileText, label: 'Guidelines' }] : []),
                     { id: 'feedback', icon: Star, label: 'Rate' },
                     { id: 'complaints', icon: Camera, label: 'Proof' },
                     ...(userData?.role === 'admin' || userData?.role === 'mini_admin' || userData?.role === 'super_admin' || userData?.committeeRole ? [
