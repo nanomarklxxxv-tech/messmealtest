@@ -1724,27 +1724,6 @@ Keep the health tip short, practical and encouraging.`;
                                     <span className="text-sm font-bold text-dark dark:text-white flex items-center gap-2"><MessageSquare size={18} className="text-primary" /> Report Bug / Feedback</span>
                                 </button>
 
-                                {userData?.committeeRole && (
-                                    <button
-                                        onClick={() => setShowChecklist(true)}
-                                        className="w-full flex items-center justify-between p-4
-                                            bg-primary/5 dark:bg-primary/10 border
-                                            border-primary/20 rounded-2xl
-                                            hover:bg-primary/10 transition-colors shadow-sm"
-                                    >
-                                        <span className="text-sm font-bold text-primary
-                                            flex items-center gap-2">
-                                            <ClipboardList size={18} />
-                                            Mess Committee Checklist
-                                        </span>
-                                        <span className="text-[10px] font-black
-                                            bg-primary text-white dark:text-black
-                                            px-2 py-0.5 rounded-lg uppercase">
-                                            Open
-                                        </span>
-                                    </button>
-                                )}
-
                                 {/* Profile Tagline */}
                                 <div className="text-center py-2 opacity-100">
                                     <p className="text-[10px] font-bold text-black dark:text-white tracking-widest uppercase">
