@@ -17,11 +17,11 @@ export const DateStrip = ({ selectedDate, onSelectDate, theme = 'orange' }) => {
 
     const getThemeBackgroundColor = () => {
         const themes = {
-            'blue': 'bg-blue-50 dark:bg-blue-950/30',
-            'orange': 'bg-orange-50 dark:bg-orange-950/30',
-            'green': 'bg-emerald-50 dark:bg-emerald-950/30',
-            'purple': 'bg-purple-50 dark:bg-purple-950/30',
-            'indigo': 'bg-indigo-50 dark:bg-indigo-950/30'
+            'blue': 'bg-blue-100 dark:bg-blue-900/50',
+            'orange': 'bg-orange-100 dark:bg-orange-900/50',
+            'green': 'bg-emerald-100 dark:bg-emerald-900/50',
+            'purple': 'bg-purple-100 dark:bg-purple-900/50',
+            'indigo': 'bg-indigo-100 dark:bg-indigo-900/50'
         };
         return themes[theme] || themes.blue;
     };
