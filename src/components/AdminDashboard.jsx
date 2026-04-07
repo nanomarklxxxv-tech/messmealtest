@@ -6261,7 +6261,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                    bg-white dark:bg-[#11111C]
                                    border-b border-[#EEEEEE] dark:border-[#1E1E2E]
                                    flex items-center px-4 lg:px-8 justify-between shadow-sm"
-                                   style={{ left: navOpen ? '256px' : '64px', transition: 'left 0.3s ease' }}>
+                                   style={{ left: isSidebarOpen ? '256px' : '64px', transition: 'left 0.3s ease' }}>
                     <div className="flex-1 lg:hidden" />
                     <h2 className="flex items-center gap-2 text-sm font-black text-[#0D0D0D] dark:text-[#F0F0FF] tracking-tight">
                         <div className="p-1.5 rounded-lg bg-[#E8F5E9] dark:bg-[#1E1E35]">
