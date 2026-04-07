@@ -5204,11 +5204,12 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                         {!isMiniAdmin && (isSuperAdmin || userData?.role === 'admin') && (
                                                             <button
                                                                 onClick={(e) => {
+                                                                    e.preventDefault();
                                                                     e.stopPropagation();
                                                                     setCommitteeModalUser(u);
                                                                     setShowCommitteeModal(true);
                                                                 }}
-                                                                className="text-xs py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white transition-all font-bold min-h-[40px] sm:min-h-[44px] flex items-center justify-center whitespace-nowrap lg:hidden"
+                                                                className="text-xs py-1.5 sm:py-2 px-2 sm:px-3 rounded-lg sm:rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 hover:text-white active:bg-indigo-600 transition-all font-bold min-h-[44px] sm:min-h-[44px] flex items-center justify-center whitespace-nowrap lg:hidden cursor-pointer"
                                                             >
                                                                 Set Committee
                                                             </button>
@@ -6461,8 +6462,8 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             )}
 
             {showCommitteeModal && committeeModalUser && (
-                <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 sm:p-6">
-                    <div className="bg-white dark:bg-[#1A1A2E] rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 w-full sm:max-w-sm border border-white/10 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-6">
+                    <div className="bg-white dark:bg-[#1A1A2E] rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 w-full sm:max-w-sm border border-white/10 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto pointer-events-auto">
 
                         <h3 className="font-heading font-black text-base sm:text-lg text-dark dark:text-white tracking-tight mb-2">
                             Assign Committee Role
@@ -6475,6 +6476,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
 
                         <div className="space-y-2 mb-6">
                             <button
+                                type="button"
                                 onClick={() => {
                                     assignCommitteeRole(
                                         committeeModalUser.id,
@@ -6485,10 +6487,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                 }}
                                 className={`w-full p-3 rounded-xl
                                     text-xs sm:text-sm font-bold
-                                    border-2 transition-all min-h-[44px] flex items-center justify-center
+                                    border-2 transition-all min-h-[44px] flex items-center justify-center cursor-pointer
                                     ${!committeeModalUser.committeeRole
                                         ? 'bg-indigo-500 text-white border-indigo-500'
-                                        : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500'
+                                        : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500 active:bg-indigo-400'
                                     }`}
                             >
                                 None
@@ -6496,6 +6498,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             {Object.entries(COMMITTEE_ROLES).map(
                                 ([key, label]) => (
                                     <button
+                                        type="button"
                                         key={key}
                                         onClick={() => {
                                             assignCommitteeRole(
@@ -6507,10 +6510,10 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         }}
                                         className={`w-full p-3 rounded-xl
                                             text-xs sm:text-sm font-bold
-                                            border-2 transition-all min-h-[44px] flex items-center justify-center
+                                            border-2 transition-all min-h-[44px] flex items-center justify-center cursor-pointer
                                             ${committeeModalUser.committeeRole === key
                                                 ? 'bg-indigo-500 text-white border-indigo-500'
-                                                : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500'
+                                                : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500 active:bg-indigo-400'
                                             }`}
                                     >
                                         {label}
@@ -6519,8 +6522,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             )}
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-3 mt-6 sticky bottom-0 bg-white dark:bg-[#1A1A2E] pt-4">
+                        <div className="flex flex-col sm:flex-row gap-3 mt-6 sticky bottom-0 bg-white dark:bg-[#1A1A2E] pt-4 pb-4 sm:pb-0">
                             <Button
+                                type="button"
                                 onClick={() => {
                                     setShowCommitteeModal(false);
                                     setCommitteeModalUser(null);
