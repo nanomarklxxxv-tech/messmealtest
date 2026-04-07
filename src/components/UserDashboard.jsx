@@ -92,7 +92,6 @@ const TOUR_SLIDES = [
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
-    const [viewType, setViewType] = useState('daily'); // 'daily' or 'limits'
     const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menu, setMenu] = useState(null);
     const [isLoadingMenu, setIsLoadingMenu] = useState(true);
@@ -1107,44 +1106,35 @@ Keep the health tip short, practical and encouraging.`;
                             </div>
                         )}
 
-                        {viewType === 'daily' ? (
-                            <>
-                                {userData?.hostel &&
-                                    config?.hostels?.length > 0 &&
-                                    !config.hostels.includes(userData.hostel) && (
-                                    <div className="w-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-4 mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
-                                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
-                                                Your hostel ({userData.hostel}) was removed. Please update your profile to see the menu.
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() => setShowProfileEdit(true)}
-                                            className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/20 px-3 py-1.5 rounded-xl hover:bg-amber-500/30 transition-colors flex-shrink-0"
-                                        >
-                                            Update →
-                                        </button>
+{userData?.hostel &&
+                                config?.hostels?.length > 0 &&
+                                !config.hostels.includes(userData.hostel) && (
+                                <div className="w-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-4 mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
+                                        <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                                            Your hostel ({userData.hostel}) was removed. Please update your profile to see the menu.
+                                        </p>
                                     </div>
-                                )}
-                                <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
-                                <MenuGrid
-                                    menu={menu}
-                                    isLoading={isLoadingMenu}
-                                    activeTimings={activeTimings}
-                                    selectedDateStr={selectedDate}
-                                    nutritionTips={nutritionTips}
-                                    onAnalyze={handleNutritionAnalysis}
-                                    aiLoading={aiLoading}
-                                    theme={theme}
-                                />
-                            </>
-                        ) : (
-                            <FoodLimitsView 
-                                foodLimits={config?.foodLimits} 
-                                theme={theme} 
+                                    <button
+                                        onClick={() => setShowProfileEdit(true)}
+                                        className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/20 px-3 py-1.5 rounded-xl hover:bg-amber-500/30 transition-colors flex-shrink-0"
+                                    >
+                                        Update →
+                                    </button>
+                                </div>
+                            )}
+                            <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                            <MenuGrid
+                                menu={menu}
+                                isLoading={isLoadingMenu}
+                                activeTimings={activeTimings}
+                                selectedDateStr={selectedDate}
+                                nutritionTips={nutritionTips}
+                                onAnalyze={handleNutritionAnalysis}
+                                aiLoading={aiLoading}
+                                theme={theme}
                             />
-                        )}
                     </div>
                 )}
 
