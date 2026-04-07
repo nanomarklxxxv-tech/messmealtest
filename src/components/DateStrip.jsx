@@ -15,6 +15,17 @@ export const DateStrip = ({ selectedDate, onSelectDate, theme = 'orange' }) => {
 
     const isSameDay = (d1, d2String) => d1.toLocaleDateString('en-CA') === d2String;
 
+    const getThemeBackgroundColor = () => {
+        const themes = {
+            'blue': 'bg-blue-50 dark:bg-blue-950/30',
+            'orange': 'bg-orange-50 dark:bg-orange-950/30',
+            'green': 'bg-emerald-50 dark:bg-emerald-950/30',
+            'purple': 'bg-purple-50 dark:bg-purple-950/30',
+            'indigo': 'bg-indigo-50 dark:bg-indigo-950/30'
+        };
+        return themes[theme] || themes.blue;
+    };
+
     // Auto-scroll to today
     useEffect(() => {
         const t = setTimeout(() => {
@@ -25,8 +36,12 @@ export const DateStrip = ({ selectedDate, onSelectDate, theme = 'orange' }) => {
 
     return (
         <div className="relative w-full mb-6">
+            {/* Background Layer - Theme Colored */}
+            <div className={`absolute inset-0 rounded-3xl -mx-4 sm:-mx-6 md:-mx-8 ${getThemeBackgroundColor()}`} style={{ zIndex: 0 }} />
+            
             {/* Date Strip */}
-            <div ref={scrollRef} className="flex overflow-x-auto gap-2 sm:gap-3 pb-4 px-4 sm:px-6 snap-x snap-mandatory scrollbar-hide scroll-px-4" style={{ scrollBehavior: 'smooth' }}>
+            <div className="relative z-10" ref={scrollRef} style={{ scrollBehavior: 'smooth' }}>
+                <div className="flex overflow-x-auto gap-2 sm:gap-3 py-4 sm:py-6 px-4 sm:px-6 snap-x snap-mandatory scrollbar-hide scroll-px-4">
                 {dates.map((date, idx) => {
                     const isSelected = isSameDay(date, selectedDate);
                     const isToday = isSameDay(date, new Date().toLocaleDateString('en-CA'));
@@ -65,6 +80,7 @@ export const DateStrip = ({ selectedDate, onSelectDate, theme = 'orange' }) => {
                         </button>
                     );
                 })}
+                </div>
             </div>
         </div>
     );
