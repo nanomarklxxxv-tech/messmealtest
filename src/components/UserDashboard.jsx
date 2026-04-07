@@ -1988,7 +1988,7 @@ Keep the health tip short, practical and encouraging.`;
                     ...(config?.foodLimits ? [{ id: 'foodlimits', icon: FileText, label: 'Guidelines' }] : []),
                     { id: 'feedback', icon: Star, label: 'Rate' },
                     { id: 'complaints', icon: Camera, label: 'Proof' },
-                    ...(userData?.role === 'admin' || userData?.role === 'mini_admin' || userData?.role === 'super_admin' || userData?.committeeRole ? [
+                    ...(userData?.committeeRole ? [
                         { id: 'checklists', icon: ClipboardList, label: 'Checklists' }
                     ] : []),
                     { id: 'profile', icon: User, label: 'Profile' }
