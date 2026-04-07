@@ -92,6 +92,7 @@ const TOUR_SLIDES = [
 
 export const UserDashboard = ({ user, userData, onLogout, onSwitchToAdmin, canSwitchToAdmin, config, settings, updateSettings, isPending = false }) => {
     const [activeTab, setActiveTab] = useState('menu');
+    const [viewType, setViewType] = useState('limits'); // 'daily' or 'limits'
     const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-CA'));
     const [menu, setMenu] = useState(null);
     const [isLoadingMenu, setIsLoadingMenu] = useState(true);
@@ -1106,7 +1107,50 @@ Keep the health tip short, practical and encouraging.`;
                             </div>
                         )}
 
-                        <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
+                        <div className="flex justify-end mb-4">
+                            <div className="bg-[#F0F0F0] dark:bg-[#1A1A1A] border border-[#E4E4E4] dark:border-[#2A2A2A] p-1 rounded-pill inline-flex shadow-sm">
+                                <button
+                                    onClick={() => setViewType('daily')}
+                                    className={`px-5 py-2 rounded-pill text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewType === 'daily'
+                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-md scale-105'
+                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
+                                        }`}
+                                >
+                                    Daily Menu
+                                </button>
+                                <button
+                                    onClick={() => setViewType('limits')}
+                                    className={`px-5 py-2 rounded-pill text-xs font-black uppercase tracking-widest transition-all duration-300 ${viewType === 'limits'
+                                        ? 'bg-[#0057FF] text-white dark:bg-[#D4F000] dark:text-[#0D0D0D] shadow-md scale-105'
+                                        : 'text-[#6B6B6B] dark:text-[#A0A0A0] hover:text-[#0D0D0D] dark:hover:text-white'
+                                        }`}
+                                >
+                                    Food Limits
+                                </button>
+                            </div>
+                        </div>
+
+                        {viewType === 'daily' ? (
+                            <>
+                                {userData?.hostel &&
+                                    config?.hostels?.length > 0 &&
+                                    !config.hostels.includes(userData.hostel) && (
+                                    <div className="w-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-4 mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
+                                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                                                Your hostel ({userData.hostel}) was removed. Please update your profile to see the menu.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowProfileEdit(true)}
+                                            className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/20 px-3 py-1.5 rounded-xl hover:bg-amber-500/30 transition-colors flex-shrink-0"
+                                        >
+                                            Update →
+                                        </button>
+                                    </div>
+                                )}
+                                <DateStrip selectedDate={selectedDate} onSelectDate={setSelectedDate} theme={theme} />
                                 <MenuGrid
                                     menu={menu}
                                     isLoading={isLoadingMenu}
@@ -1117,6 +1161,13 @@ Keep the health tip short, practical and encouraging.`;
                                     aiLoading={aiLoading}
                                     theme={theme}
                                 />
+                            </>
+                        ) : (
+                            <FoodLimitsView 
+                                foodLimits={config?.foodLimits} 
+                                theme={theme} 
+                            />
+                        )}
                     </div>
                 )}
 
