@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, appId } from '../lib/firebase';
 import {
-    doc, onSnapshot, setDoc, updateDoc, serverTimestamp, getDocs, collection
+    doc, onSnapshot, setDoc, updateDoc, serverTimestamp, collection
 } from 'firebase/firestore';
 import { COMMITTEE_CHECKLISTS, COMMITTEE_ROLES } from
     '../lib/constants';
@@ -459,6 +459,13 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
 
     // Generate array of ALL dates - MUST use useMemo to update when historyData changes
     const historyDates = useMemo(() => {
+        const normalizeDate = (date) => {
+            if (!date) return '';
+            if (typeof date === 'string') return date;
+            if (date instanceof Date) return date.toLocaleDateString('en-CA');
+            return String(date);
+        };
+
         const dateSet = new Set();
         
         // Add all dates from the range
@@ -482,20 +489,48 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
     }, [historyData, historyDateFrom, historyDateTo]);
 
     useEffect(() => {
-        let unsubscribe;
-        if (showHistory) {
-            unsubscribe = fetchHistory();
-        }
-        return () => {
-            if (unsubscribe) unsubscribe();
-        };
-    }, [showHistory, historyDateFrom,
-        historyDateTo]);
+        if (!showHistory) return;
+        
+        const fromDate = historyDateFrom || defaultDates.from;
+        const toDate = historyDateTo || defaultDates.to;
+        
+        // Real-time listener for history data
+        const unsubscribe = onSnapshot(
+            collection(db, 'artifacts', appId,
+                'public', 'data', 'checklists'),
+            (snap) => {
+                const docs = snap.docs
+                    .map(d => ({
+                        id: d.id, ...d.data()
+                    }))
+                    .filter(d =>
+                        d.committeeRole === committeeRole
+                        && d.hostel === hostel
+                        && d.submitted === true
+                        && d.date >= fromDate
+                        && d.date <= toDate
+                    )
+                    .sort((a, b) =>
+                        a.date.localeCompare(b.date)
+                    );
+                setHistoryData(docs);
+                setHistoryLoading(false);
+            },
+            (e) => {
+                console.error('History fetch failed:', e);
+                toast.error('Failed to load history.');
+                setHistoryLoading(false);
+            }
+        );
+        
+        return () => unsubscribe();
+    }, [showHistory, historyDateFrom, historyDateTo, committeeRole, hostel, defaultDates]);
 
     // Manual refresh function
     const handleRefreshHistory = () => {
-        setHistoryLoading(true);
-        fetchHistory();
+        // Force refresh by triggering the useEffect
+        setShowHistory(false);
+        setTimeout(() => setShowHistory(true), 100);
     };
 
     const exportHistoryCSV = () => {

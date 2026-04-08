@@ -114,7 +114,7 @@ service cloud.firestore {
       allow write: if request.auth != null
         && (isAdmin(appId)
           || (get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid)).data.committeeRole != null
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hostel', 'role', 'committeeRole', 'submitted'])));
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['hostel', 'role', 'committeeRole'])));
     }
 
     match /artifacts/{appId}/public/data/checklist_reports/{docId} {
