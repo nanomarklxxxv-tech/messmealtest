@@ -6,7 +6,7 @@ import {
 import { COMMITTEE_CHECKLISTS, COMMITTEE_ROLES } from
     '../lib/constants';
 import { CheckCircle2, XCircle, Clock, Save, Clock4,
-    ClipboardList, AlertTriangle, MessageSquare, FileText, X, Download } from 'lucide-react';
+    ClipboardList, AlertTriangle, MessageSquare, FileText, X, Download, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { Button } from './ui/Button';
@@ -1135,9 +1135,9 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                             dark:bg-[#16162A] border border-zinc-200
                             dark:border-white/10">
                             {/* Header */}
-                            <div className="flex items-center justify-between
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between
                                 mb-6 pb-4 border-b border-zinc-100
-                                dark:border-white/5">
+                                dark:border-white/5 gap-4">
                                 <div>
                                     <h3 className="text-lg font-black
                                         text-dark dark:text-white
@@ -1156,56 +1156,56 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
                                     <button
                                         onClick={handleRefreshHistory}
                                         disabled={historyLoading}
-                                        className="flex items-center gap-2
-                                            px-4 py-2 rounded-xl
-                                            text-xs font-black
+                                        className="flex items-center gap-1 sm:gap-2
+                                            px-2 sm:px-4 py-2 rounded-xl
+                                            text-[10px] sm:text-xs font-black
                                             bg-blue-500/10
                                             text-blue-600
                                             dark:text-blue-400
                                             hover:bg-blue-500/20
                                             disabled:opacity-50
-                                            transition-colors"
+                                            transition-colors flex-1 sm:flex-initial justify-center"
                                     >
                                         <Clock4 size={14} />
-                                        Refresh
+                                        <span className="hidden sm:inline">Refresh</span>
                                     </button>
                                     {historyData.length > 0 && (
                                         <button
                                             onClick={exportHistoryCSV}
                                             disabled={historyLoading}
-                                            className="flex items-center gap-2
-                                                px-4 py-2 rounded-xl
-                                                text-xs font-black
+                                            className="flex items-center gap-1 sm:gap-2
+                                                px-2 sm:px-4 py-2 rounded-xl
+                                                text-[10px] sm:text-xs font-black
                                                 bg-emerald-500/10
                                                 text-emerald-600
                                                 dark:text-emerald-400
                                                 hover:bg-emerald-500/20
                                                 transition-colors
-                                                disabled:opacity-50"
+                                                disabled:opacity-50 flex-1 sm:flex-initial justify-center"
                                         >
                                             <Download size={14} />
-                                            Export CSV
+                                            <span className="hidden sm:inline">Export CSV</span>
                                         </button>
                                     )}
                                     <button
                                         onClick={() => setShowHistory(false)}
-                                        className="flex items-center gap-2
-                                            px-4 py-2 rounded-xl
-                                            text-xs font-black
+                                        className="flex items-center gap-1 sm:gap-2
+                                            px-2 sm:px-4 py-2 rounded-xl
+                                            text-[10px] sm:text-xs font-black
                                             bg-zinc-100
                                             dark:bg-white/10
                                             text-zinc-600
                                             dark:text-zinc-400
                                             hover:bg-zinc-200
                                             dark:hover:bg-white/20
-                                            transition-colors"
+                                            transition-colors flex-1 sm:flex-initial justify-center"
                                     >
-                                        <X size={14} />
-                                        Close
+                                        <ArrowLeft size={14} />
+                                        <span className="hidden sm:inline">Back</span>
                                     </button>
                                 </div>
                             </div>
