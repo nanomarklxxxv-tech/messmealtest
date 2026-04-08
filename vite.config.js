@@ -44,12 +44,14 @@ export default defineConfig({
     })
   ],
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 3000,
+    minify: 'terser',
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor': ['react', 'react-dom', 'firebase'],
-          'ui': ['lucide-react'],
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/messaging', 'firebase/storage'],
+          'react-vendor': ['react', 'react-dom'],
+          'ui': ['lucide-react', 'react-hot-toast'],
         }
       }
     }
