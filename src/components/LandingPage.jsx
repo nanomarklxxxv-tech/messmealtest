@@ -234,11 +234,12 @@ export const LandingPage = ({ onLogin, loading, error, config }) => {
         localStorage.setItem(privacyPolicyKey, 'true');
         setPrivacyAccepted(true);
         setShowPrivacyModal(false);
+        setIsVisible(true); // Ensure visibility for both mobile and desktop
         // Now show auth screen
         if (!isMobile) {
             setScreen('auth');
-            setIsVisible(true);
         }
+        // On mobile, MobileBottomSheet renders automatically when privacy is accepted
     };
 
     useEffect(() => {
@@ -286,7 +287,9 @@ export const LandingPage = ({ onLogin, loading, error, config }) => {
             // Privacy already accepted, proceed to auth
             if (!isMobile) {
                 setScreen('auth');
+                setIsVisible(true);
             }
+            // On mobile, MobileBottomSheet will auto-render when conditions are met
         }
     };
 

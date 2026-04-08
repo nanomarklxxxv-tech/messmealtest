@@ -286,20 +286,18 @@ const App = () => {
         let role = 'student';
         if (isSuperAdminEmail) role = 'super_admin';
         else if (isFacultyDomain) role = 'faculty';
-        else if (isWhitelisted) role = 'admin';
 
         await setDoc(userRef, {
           email,
           name: result.user.displayName || email.split('@')[0],
           role,
           approved: true,
-          adminApproved: isWhitelisted ? true : false,
+          adminApproved: false,
           createdAt: new Date().toISOString()
         });
         toast.success('Account created! Welcome.');
 
-        if (isWhitelisted) setViewMode('admin');
-        else if (role === 'super_admin') setViewMode('admin');
+        if (role === 'super_admin') setViewMode('admin');
         else setViewMode('user');
       } else {
         const existingData = userSnap.data();
@@ -320,6 +318,7 @@ const App = () => {
             existingData.role !== 'revoked' &&
             existingData.role !== 'admin' &&
             existingData.role !== 'super_admin' &&
+            existingData.role !== 'mini_admin' &&
             existingData.role !== correctRole) {
             await updateDoc(userRef, {
                 role: correctRole,
@@ -336,18 +335,6 @@ const App = () => {
             });
         }
 
-        if (isWhitelisted &&
-            existingData.role !== 'admin' &&
-            existingData.role !== 'super_admin') {
-            await updateDoc(userRef, {
-                role: 'admin',
-                approved: true,
-                adminApproved: true
-            });
-        }
-
-        if (isWhitelisted) setViewMode('admin');
-
         // Force refresh super_admin role if email matches
         if (isSuperAdminEmail && (existingData.role !== 'super_admin' || !existingData.approved)) {
           await updateDoc(userRef, { role: 'super_admin', approved: true });
@@ -359,11 +346,9 @@ const App = () => {
         } else if (existingData.role === 'super_admin') {
           setViewMode('admin');
           toast.success(`Welcome back, ${existingData.name || email.split('@')[0]}!`);
-        } else if (existingData.role === 'admin' && existingData.adminApproved) {
-          // Approved admin — start in user view but can switch
-          setViewMode('user');
-          toast.success(`Welcome back, ${existingData.name || email.split('@')[0]}!`);
         } else {
+          // All other users (students, faculty, mini_admin without approval) → user view
+          // They can switch to admin via button if they have admin role
           setViewMode('user');
           toast.success(`Welcome back, ${existingData.name || email.split('@')[0]}!`);
         }
@@ -404,10 +389,8 @@ const App = () => {
   const superAdminEmail = config?.superAdminEmail || INITIAL_SUPER_ADMIN_EMAIL;
   const isSuperAdminUser = userData?.role === 'super_admin' || (user?.email && user?.email.toLowerCase() === superAdminEmail.toLowerCase());
   const canSwitchToAdmin =
-      userData?.role === 'admin' ||
       userData?.role === 'super_admin' ||
-      userData?.role === 'mini_admin' ||
-      userData?.adminApproved === true;
+      (userData?.role === 'mini_admin' && userData?.approved === true && userData?.adminApproved === true);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -486,7 +469,7 @@ const App = () => {
                 config={config}
               />
             ) : /* 5. Admin dashboard */
-            viewMode === 'admin' && (isSuperAdminUser || userData?.adminApproved === true) ? (
+            viewMode === 'admin' && (isSuperAdminUser || (userData?.role === 'mini_admin' && userData?.approved === true && userData?.adminApproved === true)) ? (
               <ErrorBoundary>
                 <AdminDashboard
                   user={user}
