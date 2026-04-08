@@ -15,7 +15,9 @@ import { Card } from './ui/Card';
 export const CommitteeChecklist = ({ user, userData, config }) => {
     const committeeRole = userData?.committeeRole;
     const checklist = COMMITTEE_CHECKLISTS[committeeRole];
-    const hostel = userData?.hostel || 'GENERAL';
+    const user_hostel = userData?.hostel || 'GENERAL';
+    // Use assigned committee hostel for checklist (locked by admin), fallback to user's hostel
+    const hostel = userData?.assignedCommitteeHostel || user_hostel;
     
     // Check if user is an admin (can edit hostel in checklists)
     const isAdmin = userData?.role === 'admin' || userData?.role === 'mini_admin' || userData?.role === 'super_admin';

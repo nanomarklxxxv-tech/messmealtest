@@ -413,12 +413,18 @@ const App = () => {
 
   const handleProfileComplete = async (profileData) => {
     try {
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid), profileData, { merge: true });
+      const updatePayload = {
+        ...profileData,
+        hostel: String(profileData.hostel || '').trim().toUpperCase(),
+        messType: String(profileData.messType || '').trim().toUpperCase(),
+        updatedAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid), updatePayload, { merge: true });
       toast.success("Profile saved!");
-      console.log('Profile saved successfully:', profileData);
+      console.log('Profile saved successfully:', updatePayload);
     } catch (error) {
       console.error('Failed to save profile:', error);
-      toast.error("Failed to save profile: " + (error?.message || 'Unknown error'));
+      toast.error("Failed to update profile. Please try again.");
     }
   };
 

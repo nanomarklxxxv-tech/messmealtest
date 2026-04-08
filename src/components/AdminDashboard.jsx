@@ -72,6 +72,8 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [miniAdminHostels, setMiniAdminHostels] = useState([]);
     const [showCommitteeModal, setShowCommitteeModal] = useState(false);
     const [committeeModalUser, setCommitteeModalUser] = useState(null);
+    const [committeeModalHostel, setCommitteeModalHostel] = useState(null);
+    const [committeeModalRole, setCommitteeModalRole] = useState(null);
 
     // Data states
     const [usersList, setUsersList] = useState([]);
@@ -825,7 +827,7 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         }
     };
 
-    const assignCommitteeRole = async (userId, role) => {
+    const assignCommitteeRole = async (userId, role, hostel = null) => {
         try {
             // Get user data to lock their hostel when assigning committee role
             const userRef = doc(db, 'artifacts', appId, 'users', userId);
@@ -838,11 +840,17 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                 updatedAt: serverTimestamp()
             };
             
-            // If assigning a committee role (not null), lock the hostel
-            if (role) {
-                updateData.assignedHostels = userData?.hostel ? [userData.hostel] : [];
-                updateData.hostelLockedAt = serverTimestamp();
-                updateData.hostelLockedReason = `committee_${role}_role_assigned`;
+            // If assigning a committee role (not null), assign the hostel
+            if (role && hostel) {
+                updateData.assignedCommitteeHostel = hostel;
+                updateData.assignedCommitteeHostelAt = serverTimestamp();
+            } else if (role && !hostel) {
+                // If role is assigned but no hostel provided, use user's current hostel
+                updateData.assignedCommitteeHostel = userData?.hostel || '';
+                updateData.assignedCommitteeHostelAt = serverTimestamp();
+            } else if (!role) {
+                // Remove committee role and hostel assignment
+                updateData.assignedCommitteeHostel = null;
             }
             
             await updateDoc(userRef, updateData);
@@ -851,14 +859,16 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
             await createAuditLog('COMMITTEE_ROLE_CHANGE', userId, userData, {
                 previousCommitteeRole: userData?.committeeRole,
                 newCommitteeRole: role,
-                newCommitteeRoleLabel: role ? COMMITTEE_ROLES[role] : 'None'
+                newCommitteeRoleLabel: role ? COMMITTEE_ROLES[role] : 'None',
+                assignedCommitteeHostel: hostel || userData?.hostel || 'None'
             });
             
             toast.success(role
-                ? `Committee role assigned: ${COMMITTEE_ROLES[role]}`
+                ? `Committee role assigned: ${COMMITTEE_ROLES[role]} (${hostel || userData?.hostel})`
                 : 'Committee role removed.'
             );
-        } catch {
+        } catch (error) {
+            console.error('Error assigning committee role:', error);
             toast.error('Failed to assign committee role.');
         }
     };
@@ -6466,31 +6476,29 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                     <div className="bg-white dark:bg-[#1A1A2E] rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 w-full sm:max-w-sm border border-white/10 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto pointer-events-auto">
 
                         <h3 className="font-heading font-black text-base sm:text-lg text-dark dark:text-white tracking-tight mb-2">
-                            Assign Committee Role
+                            Assign Committee Role & Hostel
                         </h3>
                         <p className="text-xs text-zinc-400
-                            font-medium mb-4">
+                            font-medium mb-6">
                             {committeeModalUser?.name
                                 || committeeModalUser?.email}
                         </p>
 
+                        {/* Role Selection */}
+                        <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest mb-2">Select Role</label>
                         <div className="space-y-2 mb-6">
                             <button
                                 type="button"
                                 onClick={() => {
-                                    assignCommitteeRole(
-                                        committeeModalUser.id,
-                                        ''
-                                    );
-                                    setShowCommitteeModal(false);
-                                    setCommitteeModalUser(null);
+                                    setCommitteeModalRole(null);
+                                    setCommitteeModalHostel(null);
                                 }}
                                 className={`w-full p-3 rounded-xl
                                     text-xs sm:text-sm font-bold
                                     border-2 transition-all min-h-[44px] flex items-center justify-center cursor-pointer
-                                    ${!committeeModalUser.committeeRole
+                                    ${!committeeModalRole
                                         ? 'bg-indigo-500 text-white border-indigo-500'
-                                        : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500 active:bg-indigo-400'
+                                        : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500'
                                     }`}
                             >
                                 None
@@ -6501,19 +6509,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         type="button"
                                         key={key}
                                         onClick={() => {
-                                            assignCommitteeRole(
-                                                committeeModalUser.id,
-                                                key
-                                            );
-                                            setShowCommitteeModal(false);
-                                            setCommitteeModalUser(null);
+                                            setCommitteeModalRole(key);
+                                            setCommitteeModalHostel(committeeModalUser?.hostel || null);
                                         }}
                                         className={`w-full p-3 rounded-xl
                                             text-xs sm:text-sm font-bold
                                             border-2 transition-all min-h-[44px] flex items-center justify-center cursor-pointer
-                                            ${committeeModalUser.committeeRole === key
+                                            ${committeeModalRole === key
                                                 ? 'bg-indigo-500 text-white border-indigo-500'
-                                                : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500 active:bg-indigo-400'
+                                                : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-indigo-500'
                                             }`}
                                     >
                                         {label}
@@ -6522,12 +6526,41 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             )}
                         </div>
 
+                        {/* Hostel Selection - Only show if role is selected */}
+                        {committeeModalRole && (
+                            <div className="mb-6">
+                                <label className="block text-xs font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest mb-3">
+                                    Select Checklist Hostel
+                                </label>
+                                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 p-2 rounded mb-3">
+                                    ℹ️ The selected hostel will be locked for the user's checklist. User can change their profile hostel anytime.
+                                </p>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {defaultHostels.map(h => (
+                                        <button
+                                            key={h}
+                                            onClick={() => setCommitteeModalHostel(h)}
+                                            className={`p-2 rounded-lg text-xs font-bold border-2 transition-all min-h-[44px] flex items-center justify-center
+                                                ${committeeModalHostel === h
+                                                    ? 'bg-primary text-white border-primary'
+                                                    : 'bg-zinc-50 dark:bg-black/20 text-zinc-700 dark:text-white border-zinc-200 dark:border-white/10 hover:border-primary'
+                                                }`}
+                                        >
+                                            {h}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex flex-col sm:flex-row gap-3 mt-6 sticky bottom-0 bg-white dark:bg-[#1A1A2E] pt-4 pb-4 sm:pb-0">
                             <Button
                                 type="button"
                                 onClick={() => {
                                     setShowCommitteeModal(false);
                                     setCommitteeModalUser(null);
+                                    setCommitteeModalRole(null);
+                                    setCommitteeModalHostel(null);
                                 }}
                                 variant="secondary"
                                 className="flex-1 py-2.5 sm:py-3
@@ -6536,6 +6569,27 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             >
                                 Close
                             </Button>
+                            {committeeModalRole && committeeModalHostel && (
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        assignCommitteeRole(
+                                            committeeModalUser.id,
+                                            committeeModalRole,
+                                            committeeModalHostel
+                                        );
+                                        setShowCommitteeModal(false);
+                                        setCommitteeModalUser(null);
+                                        setCommitteeModalRole(null);
+                                        setCommitteeModalHostel(null);
+                                    }}
+                                    className="flex-1 py-2.5 sm:py-3
+                                        font-black uppercase
+                                        tracking-widest text-xs sm:text-sm min-h-[44px]"
+                                >
+                                    Assign Role
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>

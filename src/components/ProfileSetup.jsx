@@ -8,11 +8,12 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, config, isReadO
     const defaultHostels = config?.hostels || DEFAULT_HOSTELS;
     const defaultMessTypes = config?.messTypes || DEFAULT_MESS_TYPES;
     
-    // Check if user is an admin who can edit hostel
-    const isAdmin = userData?.role === 'admin' || userData?.role === 'mini_admin' || userData?.role === 'super_admin';
+    // Check if user is a super admin
+    const isSuperAdmin = userData?.role === 'super_admin';
     
-    // Check if hostel is locked and user is a STUDENT (admins can still edit)
-    const isHostelLocked = !isAdmin && (userData?.hostelLockedAt !== undefined || userData?.hostelLockedReason !== undefined);
+    // Committee users can change their regular hostel, but checklist hostel is locked to assignedCommitteeHostel
+    const isCommitteeUser = userData?.committeeRole;
+    const hasAssignedCommitteeHostel = userData?.assignedCommitteeHostel ? true : false;
     const hostelLockReason = userData?.hostelLockedReason;
 
     const [name] = useState(userData?.name || user?.displayName || user?.email?.split('@')[0] || '');
@@ -38,9 +39,11 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, config, isReadO
                 messType: String(messType).trim().toUpperCase(),
                 avatar,
                 registrationId: registrationId.trim().toUpperCase(),
-                ...(userData?.role !== 'faculty' && { studyingYear })
+                ...(userData?.role !== 'faculty' && { studyingYear }),
+                updatedAt: new Date().toISOString()
             };
             await onComplete(payload);
+            toast.success('Profile updated successfully!');
         } catch (error) {
             console.error('Profile submission error:', error);
             toast.error("Failed to save profile. Please try again.");
@@ -176,24 +179,24 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, config, isReadO
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <label className="block text-sm font-bold text-zinc-500 uppercase tracking-widest">Select Hostel</label>
-                                {isHostelLocked && (
+                                {isCommitteeUser && hasAssignedCommitteeHostel && (
                                     <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 px-2 py-1 rounded-full flex items-center gap-1">
-                                        🔒 Locked
+                                        🔒 Checklist Locked
                                     </span>
                                 )}
                             </div>
-                            {isHostelLocked && (
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 italic">
-                                    Your hostel is locked because you have been assigned a role. Only admins can change this.
+                            {isCommitteeUser && hasAssignedCommitteeHostel && (
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 italic bg-amber-50 dark:bg-amber-500/10 p-2 rounded">
+                                    ℹ️ You can change your hostel anytime, but your checklist hostel is locked to <strong>{userData?.assignedCommitteeHostel}</strong> (assigned by admin). Only admins can change the checklist hostel.
                                 </p>
                             )}
                             <div className="grid grid-cols-3 gap-3">
                                 {defaultHostels.map(h => (
                                     <button
                                         key={h}
-                                        onClick={() => !isReadOnly && !isHostelLocked && setHostel(h)}
-                                        disabled={isHostelLocked}
-                                        className={`p-3 rounded-2xl text-sm font-bold transition-all duration-200 border ${isReadOnly || isHostelLocked ? 'cursor-not-allowed' : ''} ${isHostelLocked ? 'opacity-50' : ''} ${hostel === h ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
+                                        onClick={() => !isReadOnly && setHostel(h)}
+                                        disabled={isReadOnly}
+                                        className={`p-3 rounded-2xl text-sm font-bold transition-all duration-200 border ${isReadOnly ? 'cursor-not-allowed' : ''} ${hostel === h ? 'bg-primary/20 text-primary border-primary shadow-sm scale-[1.02]' : 'bg-black/5 dark: text-mid dark:text-zinc-400 hover:bg-black/10 dark:hover:bg-white/10 hover:text-dark dark:hover:text-white border-black/10 dark:border-white/10'}`}
                                     >
                                         {h}
                                     </button>
