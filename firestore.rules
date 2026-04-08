@@ -7,7 +7,7 @@ service cloud.firestore {
     }
 
     function isAdmin(appId) {
-      return userRole(appId) in ['admin', 'super_admin', 'mini_admin'];
+      return userRole(appId) in ['super_admin', 'mini_admin'];
     }
 
     function isStudent(appId) {
