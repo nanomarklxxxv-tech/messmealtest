@@ -1,5 +1,9 @@
 .git
+.gitignore
 .gitmodules
+.git/*
+.git/**/*
+.github
 node_modules
 .next
 out
@@ -11,3 +15,13 @@ build
 npm-debug.log
 yarn-error.log
 .DS_Store
+*.log
+.vscode
+.idea
+.eslintcache
+.parcel-cache
+.cache
+dist-ssr
+*.local
+.turbo
+.yarn/install-state.gz
