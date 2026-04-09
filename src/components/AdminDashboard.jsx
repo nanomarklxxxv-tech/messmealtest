@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { collection, query, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch, getDocs, where, orderBy, limit, addDoc } from 'firebase/firestore';
 import { db, appId } from '../lib/firebase';
 import { sendAdminNotificationEmail } from '../lib/mailer';
-import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy, QrCode } from 'lucide-react';
+import { LayoutDashboard, Users, Utensils, Megaphone, FileSpreadsheet, Settings, LogOut, Search, Check, X, Bell, Crown, Save, Calendar, BarChart3, ChevronRight, ArrowLeft, Menu as MenuIcon, AlertTriangle, Star, ImageIcon, Eye, Download, Shield, User, Clock4, PlusCircle, Trash2, RefreshCw, Globe, MessageSquare, CheckCircle2, Sparkles, ShieldAlert, ShieldCheck, FileText, Menu, Bug, ClipboardList, XCircle, Trophy, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
 import {
     LineChart, Line, BarChart, Bar,
