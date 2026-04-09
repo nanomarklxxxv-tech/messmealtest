@@ -49,6 +49,52 @@ const getGreeting = () => {
     return { text: "Good night", emoji: "🌙" };
 };
 
+const getChecklistMealsByRole = (committeeRole) => (
+    committeeRole === 'mess_attendant'
+        ? ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
+        : ['Breakfast', 'Lunch', 'Dinner']
+);
+
+const parseChecklistMetaFromId = (docId) => {
+    if (!docId) return {};
+    const roles = Object.keys(COMMITTEE_ROLES);
+
+    for (const role of roles) {
+        const rolePrefix = `${role}_`;
+        if (!docId.startsWith(rolePrefix)) continue;
+
+        const remainder = docId.slice(rolePrefix.length);
+        if (remainder.includes('_monthly_')) {
+            const [hostel, month] = remainder.split('_monthly_');
+            return {
+                committeeRole: role,
+                hostel: hostel || '',
+                month: month || '',
+                date: ''
+            };
+        }
+
+        const splitIndex = remainder.lastIndexOf('_');
+        if (splitIndex === -1) {
+            return {
+                committeeRole: role,
+                hostel: remainder,
+                date: '',
+                month: ''
+            };
+        }
+
+        return {
+            committeeRole: role,
+            hostel: remainder.slice(0, splitIndex),
+            date: remainder.slice(splitIndex + 1),
+            month: ''
+        };
+    }
+
+    return {};
+};
+
 export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, config, onUpdateConfig, settings, updateSettings }) => {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
@@ -319,6 +365,9 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     const [checklistDateFilter, setChecklistDateFilter] = useState(new Date().toLocaleDateString('en-CA'));
     const [checklistCommitteeFilter, setChecklistCommitteeFilter] = useState('all');
     const [checklistHostelFilter, setChecklistHostelFilter] = useState('ALL');
+    const [showChecklistHistory, setShowChecklistHistory] = useState(false);
+    const [selectedChecklistHistory, setSelectedChecklistHistory] = useState(null);
+    const [checklistHistoryTab, setChecklistHistoryTab] = useState('attendance');
 
     const [closureList, setClosureList] = useState([]);
     const [isLoadingClosures, setIsLoadingClosures] = useState(false);
@@ -561,50 +610,64 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
     // Fetch checklists
     useEffect(() => {
         if (activeTab !== 'checklists') return;
-        const fetchChecklists = async () => {
-            setIsLoadingChecklists(true);
-            try {
-                const constraints = [];
-                if (isMiniAdmin) {
-                    constraints.push(where('hostel', 'in', assignedHostels));
-                }
-                const q = constraints.length > 0
-                    ? query(collection(db, 'artifacts', appId, 'public', 'data', 'checklists'), ...constraints)
-                    : collection(db, 'artifacts', appId, 'public', 'data', 'checklists');
-                const snap = await getDocs(q);
-                const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                setChecklistData(all);
-
-                // Calculate missing checklists
-                const todayStr = new Date().toLocaleDateString('en-CA');
-                if (checklistDateFilter === todayStr) {
-                    const submitted = all
-                        .filter(c => c.date === todayStr && c.submitted)
-                        .map(c => `${c.committeeRole}_${c.hostel}`);
-                    const hostels = isMiniAdmin ? assignedHostels : (config?.hostels || DEFAULT_HOSTELS);
-                    const missing = [];
-                    Object.keys(COMMITTEE_ROLES).forEach(role => {
-                        hostels.forEach(hostel => {
-                            const key = `${role}_${hostel}`;
-                            if (!submitted.includes(key)) {
-                                missing.push({
-                                    role,
-                                    hostel,
-                                    label: COMMITTEE_ROLES[role]
-                                });
-                            }
-                        });
+        setIsLoadingChecklists(true);
+        const unsubscribe = onSnapshot(
+            collection(db, 'artifacts', appId, 'public', 'data', 'checklists'),
+            (snap) => {
+                try {
+                    const normalized = snap.docs.map(d => {
+                        const data = d.data();
+                        const parsed = parseChecklistMetaFromId(d.id);
+                        return {
+                            id: d.id,
+                            ...data,
+                            committeeRole: data.committeeRole || parsed.committeeRole || '',
+                            hostel: data.hostel || parsed.hostel || '',
+                            date: data.date || parsed.date || '',
+                            month: data.month || parsed.month || ''
+                        };
                     });
-                    setMissingChecklists(missing);
-                } else {
-                    setMissingChecklists([]);
+                    const all = isMiniAdmin
+                        ? normalized.filter(c => isHostelAllowed(c.hostel))
+                        : normalized;
+
+                    setChecklistData(all);
+
+                    // Calculate missing checklists
+                    const todayStr = new Date().toLocaleDateString('en-CA');
+                    if (checklistDateFilter === todayStr) {
+                        const submitted = all
+                            .filter(c => c.date === todayStr && c.submitted)
+                            .map(c => `${c.committeeRole}_${c.hostel}`);
+                        const hostels = isMiniAdmin ? assignedHostels : (config?.hostels || DEFAULT_HOSTELS);
+                        const missing = [];
+                        Object.keys(COMMITTEE_ROLES).forEach(role => {
+                            hostels.forEach(hostel => {
+                                const key = `${role}_${hostel}`;
+                                if (!submitted.includes(key)) {
+                                    missing.push({
+                                        role,
+                                        hostel,
+                                        label: COMMITTEE_ROLES[role]
+                                    });
+                                }
+                            });
+                        });
+                        setMissingChecklists(missing);
+                    } else {
+                        setMissingChecklists([]);
+                    }
+                } catch (e) {
+                    console.error('Failed to normalize checklists:', e);
                 }
-            } catch (e) {
+                setIsLoadingChecklists(false);
+            },
+            (e) => {
                 console.error('Failed to fetch checklists:', e);
+                setIsLoadingChecklists(false);
             }
-            setIsLoadingChecklists(false);
-        };
-        fetchChecklists();
+        );
+        return () => unsubscribe();
     }, [activeTab, checklistDateFilter, checklistCommitteeFilter, checklistHostelFilter, config, isMiniAdmin, assignedHostels]);
 
     // Update time every minute for greeting
@@ -912,10 +975,11 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         const rows = [];
         filtered.forEach(checklist => {
             const items = checklist.items || {};
+            const mealsForRole = getChecklistMealsByRole(checklist.committeeRole);
             Object.entries(items).forEach(([itemId, meals]) => {
                 if (typeof meals === 'object' &&
                     meals.Breakfast !== undefined) {
-                    ['Breakfast', 'Lunch', 'Dinner'].forEach(
+                    mealsForRole.forEach(
                         meal => {
                             const entry = meals[meal] || {};
                             rows.push({
@@ -967,6 +1031,93 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
         exportToExcel(rows,
             `Checklists_${checklistDateFilter}`);
         toast.success('Checklist exported!');
+    };
+
+    const openChecklistHistory = (checklist) => {
+        if (!checklist) return;
+        setSelectedChecklistHistory(checklist);
+        setChecklistHistoryTab('attendance');
+        setShowChecklistHistory(true);
+    };
+
+    const exportChecklistHistoryExcel = (checklist) => {
+        if (!checklist) return;
+
+        const items = checklist.items || {};
+        const mealsForRole = getChecklistMealsByRole(checklist.committeeRole);
+        const isDailyChecklist = Object.values(items).some(item =>
+            item && typeof item === 'object' && mealsForRole.some(meal => item[meal] !== undefined)
+        );
+
+        const baseMeta = {
+            Date: checklist.date || checklist.month || '',
+            Hostel: checklist.hostel || '',
+            Committee: COMMITTEE_ROLES[checklist.committeeRole] || checklist.committeeRole || '',
+            SubmittedBy: checklist.submittedBy || '',
+            Submitted: checklist.submitted ? 'Yes' : 'No'
+        };
+
+        const attendanceRows = [];
+        const remarksRows = [];
+        const sessionRows = [];
+
+        Object.entries(items).forEach(([itemId, itemValue]) => {
+            if (isDailyChecklist) {
+                mealsForRole.forEach(meal => {
+                    const entry = itemValue?.[meal] || {};
+                    attendanceRows.push({
+                        ...baseMeta,
+                        'Item ID': itemId,
+                        'Item': itemId,
+                        'Meal': meal,
+                        'Status': entry.status || ''
+                    });
+                    remarksRows.push({
+                        ...baseMeta,
+                        'Item ID': itemId,
+                        'Item': itemId,
+                        'Meal': meal,
+                        'Remarks': entry.remarks || ''
+                    });
+                });
+            } else {
+                attendanceRows.push({
+                    ...baseMeta,
+                    'Item ID': itemId,
+                    'Item': itemId,
+                    'Meal': 'Monthly',
+                    'Status': itemValue?.status || ''
+                });
+                remarksRows.push({
+                    ...baseMeta,
+                    'Item ID': itemId,
+                    'Item': itemId,
+                    'Meal': 'Monthly',
+                    'Remarks': itemValue?.remarks || ''
+                });
+            }
+        });
+
+        if (checklist.sessionRemarks) {
+            mealsForRole.forEach(meal => {
+                if (checklist.sessionRemarks[meal]) {
+                    sessionRows.push({
+                        ...baseMeta,
+                        'Meal': meal,
+                        'Session Remarks': checklist.sessionRemarks[meal]
+                    });
+                }
+            });
+        }
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceRows.length > 0 ? attendanceRows : [baseMeta]), 'Attendance');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(remarksRows.length > 0 ? remarksRows : [baseMeta]), 'Remarks');
+        if (sessionRows.length > 0) {
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessionRows), 'Session Remarks');
+        }
+        XLSX.writeFile(wb, `Checklist_History_${checklist.committeeRole || 'committee'}_${checklist.hostel || 'hostel'}_${checklist.date || checklist.month || 'selected'}.xlsx`);
+        toast.success('Checklist history downloaded!');
     };
 
     useEffect(() => {
@@ -4297,6 +4448,14 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                         c.hostel === checklistHostelFilter;
                     return matchDate && matchCommittee && matchHostel;
                 });
+                const activeHistoryChecklist = selectedChecklistHistory && filteredChecklists.some(c => c.id === selectedChecklistHistory.id)
+                    ? selectedChecklistHistory
+                    : filteredChecklists[0] || null;
+                const activeHistoryMeals = getChecklistMealsByRole(activeHistoryChecklist?.committeeRole);
+                const activeHistoryItems = Object.entries(activeHistoryChecklist?.items || {});
+                const activeHistoryIsDaily = activeHistoryChecklist
+                    ? activeHistoryItems.some(([, item]) => item && typeof item === 'object' && activeHistoryMeals.some(meal => item[meal] !== undefined))
+                    : false;
 
                 return (
                     <div className="space-y-6 max-w-7xl animate-fade-in">
@@ -4420,6 +4579,36 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                             </div>
                         </div>
 
+                        <div className="flex flex-wrap items-center gap-3
+                            bg-white dark:bg-[#16162A] border border-zinc-200
+                            dark:border-white/10 rounded-3xl p-4 shadow-sm">
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                                <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                    Date: {checklistDateFilter || 'All'}
+                                </span>
+                                <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                    Committee: {checklistCommitteeFilter === 'all' ? 'All Committees' : (COMMITTEE_ROLES[checklistCommitteeFilter] || checklistCommitteeFilter)}
+                                </span>
+                                <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                    Hostel: {checklistHostelFilter === 'ALL' ? 'All Hostels' : checklistHostelFilter}
+                                </span>
+                                <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                    Matches: {filteredChecklists.length}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 ml-auto">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => openChecklistHistory(filteredChecklists[0])}
+                                    disabled={filteredChecklists.length === 0}
+                                    className="py-3 text-xs font-black uppercase tracking-widest bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20"
+                                >
+                                    <Clock4 size={14} className="mr-2" />
+                                    Open History
+                                </Button>
+                            </div>
+                        </div>
+
                         {/* Checklist Cards */}
                         {isLoadingChecklists ? (
                             <div className="grid gap-4 sm:grid-cols-2
@@ -4452,30 +4641,31 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                     const allItems = Object.values(
                                         items
                                     );
-                                    const totalFields =
-                                        allItems.length;
-                                    const filledFields =
-                                        allItems.filter(item => {
-                                            if (item.Breakfast) {
-                                                return item.Breakfast
-                                                    .status;
-                                            }
-                                            return item.status;
-                                        }).length;
-                                    const failedItems =
-                                        allItems.filter(item => {
-                                            if (item.Breakfast) {
-                                                return (
-                                                    item.Breakfast
-                                                        .status === '✗' ||
-                                                    item.Lunch
-                                                        ?.status === '✗' ||
-                                                    item.Dinner
-                                                        ?.status === '✗'
-                                                );
-                                            }
-                                            return item.status === '✗';
-                                        }).length;
+                                    const mealsForRole =
+                                        getChecklistMealsByRole(
+                                            checklist.committeeRole
+                                        );
+                                    const isDailyChecklist =
+                                        allItems.some(item =>
+                                            item && typeof item === 'object'
+                                            && mealsForRole.some(meal =>
+                                                item[meal] !== undefined)
+                                        );
+                                    const totalFields = isDailyChecklist
+                                        ? allItems.length * mealsForRole.length
+                                        : allItems.length;
+                                    const filledFields = isDailyChecklist
+                                        ? allItems.reduce((acc, item) =>
+                                            acc + mealsForRole.filter(meal =>
+                                                item?.[meal]?.status).length, 0)
+                                        : allItems.filter(item => item?.status)
+                                            .length;
+                                    const failedItems = isDailyChecklist
+                                        ? allItems.reduce((acc, item) =>
+                                            acc + mealsForRole.filter(meal =>
+                                                item?.[meal]?.status === '✗').length, 0)
+                                        : allItems.filter(item => item?.status === '✗')
+                                            .length;
 
                                     return (
                                         <Card key={checklist.id}
@@ -4520,6 +4710,15 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                                         : '⏳ Pending'}
                                                 </span>
                                             </div>
+
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => openChecklistHistory(checklist)}
+                                                className="mb-4 py-2 text-xs font-black uppercase tracking-widest bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white border-zinc-200 dark:border-white/20"
+                                            >
+                                                <Eye size={14} className="mr-2" />
+                                                View History
+                                            </Button>
 
                                             {/* Progress bar */}
                                             <div className="mb-4">
@@ -4615,6 +4814,134 @@ export const AdminDashboard = ({ user, userData, onLogout, onSwitchToUser, confi
                                         </Card>
                                     );
                                 })}
+                            </div>
+                        )}
+
+                        {showChecklistHistory && activeHistoryChecklist && (
+                            <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm overflow-y-auto">
+                                <div className="min-h-screen flex items-center justify-center p-4">
+                                    <Card className="w-full max-w-6xl bg-white dark:bg-[#16162A] border border-zinc-200 dark:border-white/10 shadow-2xl">
+                                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6 pb-4 border-b border-zinc-100 dark:border-white/10">
+                                            <div>
+                                                <h3 className="text-xl font-black text-dark dark:text-white uppercase tracking-widest flex items-center gap-3">
+                                                    <ClipboardList size={22} className="text-primary" />
+                                                    Checklist History
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-2 mt-3 text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                                                    <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                                        Hostel: {activeHistoryChecklist.hostel || 'N/A'}
+                                                    </span>
+                                                    <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                                        Committee: {COMMITTEE_ROLES[activeHistoryChecklist.committeeRole] || activeHistoryChecklist.committeeRole || 'N/A'}
+                                                    </span>
+                                                    <span className="px-3 py-1.5 rounded-full bg-zinc-100 dark:bg-white/5">
+                                                        Date: {activeHistoryChecklist.date || activeHistoryChecklist.month || 'N/A'}
+                                                    </span>
+                                                    <span className={`px-3 py-1.5 rounded-full ${activeHistoryChecklist.submitted ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                                                        {activeHistoryChecklist.submitted ? 'Submitted' : 'Pending'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => exportChecklistHistoryExcel(activeHistoryChecklist)}
+                                                    className="py-2 px-4 text-xs font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
+                                                >
+                                                    <Download size={14} className="mr-2" />
+                                                    Download
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => setShowChecklistHistory(false)}
+                                                    className="py-2 px-4 text-xs font-black uppercase tracking-widest bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-white border-zinc-200 dark:border-white/20"
+                                                >
+                                                    <ArrowLeft size={14} className="mr-2" />
+                                                    Close
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2 mb-5">
+                                            {['attendance', 'remarks', 'session'].map(tab => (
+                                                <button
+                                                    key={tab}
+                                                    onClick={() => setChecklistHistoryTab(tab)}
+                                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${checklistHistoryTab === tab ? 'bg-primary text-white' : 'bg-zinc-100 dark:bg-white/10 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/20'}`}
+                                                >
+                                                    {tab === 'attendance' ? 'Attendance' : tab === 'remarks' ? 'Remarks' : 'Session Remarks'}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="overflow-x-auto max-h-[70vh] rounded-2xl border border-zinc-200 dark:border-white/10">
+                                            {checklistHistoryTab === 'session' ? (
+                                                <table className="w-full text-sm border-collapse">
+                                                    <thead className="sticky top-0 z-20">
+                                                        <tr className="bg-zinc-50 dark:bg-white/5 border-b border-zinc-200 dark:border-white/10">
+                                                            <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200 border-r border-zinc-200 dark:border-white/10">Session</th>
+                                                            <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Remarks</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {activeHistoryMeals.map(meal => {
+                                                            const remarks = activeHistoryChecklist?.sessionRemarks?.[meal];
+                                                            return (
+                                                                <tr key={meal} className="border-b border-zinc-100 dark:border-white/5">
+                                                                    <td className="px-5 py-4 font-black uppercase text-xs tracking-widest text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-white/5 border-r border-zinc-200 dark:border-white/10">{meal}</td>
+                                                                    <td className="px-5 py-4 text-sm text-zinc-700 dark:text-zinc-300">{remarks || '—'}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            ) : (
+                                                <table className="w-full text-sm border-collapse">
+                                                    <thead className="sticky top-0 z-20">
+                                                        <tr className="bg-zinc-50 dark:bg-white/5 border-b border-zinc-200 dark:border-white/10">
+                                                            <th className="px-5 py-4 text-left text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200 border-r border-zinc-200 dark:border-white/10 sticky left-0 bg-zinc-50 dark:bg-white/5 z-30 min-w-[120px]">Item</th>
+                                                            {activeHistoryIsDaily ? activeHistoryMeals.map(meal => (
+                                                                <th key={meal} className="px-4 py-4 text-center text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200 border-r border-zinc-200 dark:border-white/10">{meal}</th>
+                                                            )) : (
+                                                                <th className="px-4 py-4 text-center text-xs font-black uppercase tracking-wider text-zinc-700 dark:text-zinc-200">Status</th>
+                                                            )}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {activeHistoryItems.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={activeHistoryIsDaily ? activeHistoryMeals.length + 1 : 2} className="px-5 py-10 text-center text-zinc-400">No checklist data available.</td>
+                                                            </tr>
+                                                        ) : activeHistoryItems.map(([itemId, itemValue], index) => {
+                                                            const itemLabel = itemValue?.text || itemId;
+                                                            return (
+                                                                <tr key={itemId} className={`${index % 2 === 0 ? 'bg-white dark:bg-[#16162A]' : 'bg-zinc-50/60 dark:bg-white/[0.02]'} border-b border-zinc-100 dark:border-white/5`}>
+                                                                    <td className="px-5 py-4 font-bold text-zinc-700 dark:text-zinc-200 sticky left-0 bg-inherit border-r border-zinc-200 dark:border-white/10 min-w-[120px]">{itemLabel}</td>
+                                                                    {activeHistoryIsDaily ? activeHistoryMeals.map(meal => {
+                                                                        const mealData = itemValue?.[meal] || {};
+                                                                        return (
+                                                                            <td key={`${itemId}-${meal}`} className={`px-4 py-4 text-center border-r border-zinc-100 dark:border-white/5 ${meal === 'Breakfast' ? 'bg-blue-50 dark:bg-blue-500/5' : meal === 'Lunch' ? 'bg-green-50 dark:bg-green-500/5' : meal === 'Snacks' ? 'bg-amber-50 dark:bg-amber-500/5' : 'bg-indigo-50 dark:bg-indigo-500/5'}`}>
+                                                                                {checklistHistoryTab === 'attendance' ? (
+                                                                                    <span className={`text-xl font-black ${mealData.status === '✓' ? 'text-emerald-500' : mealData.status === '✗' ? 'text-red-500' : 'text-zinc-300 dark:text-zinc-600'}`}>
+                                                                                        {mealData.status === '✓' ? '✓' : mealData.status === '✗' ? '✗' : '–'}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400 block max-w-[120px] mx-auto break-words">{mealData.remarks || '—'}</span>
+                                                                                )}
+                                                                            </td>
+                                                                        );
+                                                                    }) : (
+                                                                        <td className="px-4 py-4 text-center text-sm text-zinc-600 dark:text-zinc-300">{itemValue?.status || '—'}</td>
+                                                                    )}
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            )}
+                                        </div>
+                                    </Card>
+                                </div>
                             </div>
                         )}
 

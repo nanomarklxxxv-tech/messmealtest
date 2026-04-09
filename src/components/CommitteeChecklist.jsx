@@ -77,6 +77,19 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
     const monthlyDocId =
         `${committeeRole}_${hostel}_monthly_${currentMonth}`;
 
+    const parseChecklistFromId = (docId) => {
+        if (!docId) return { matches: false, date: '' };
+        const prefix = `${committeeRole}_${hostel}_`;
+        if (!docId.startsWith(prefix)) {
+            return { matches: false, date: '' };
+        }
+        const suffix = docId.slice(prefix.length);
+        if (suffix.startsWith('monthly_')) {
+            return { matches: true, date: '' };
+        }
+        return { matches: true, date: suffix };
+    };
+
     const [currentTime, setCurrentTime] = useState(
         new Date()
     );
@@ -419,16 +432,26 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                         .map(d => ({
                             id: d.id, ...d.data()
                         }))
-                        .filter(d =>
-                            d.committeeRole === committeeRole
-                            && d.hostel === hostel
-                            && d.submitted === true
-                            && d.date >= fromDate
-                            && d.date <= toDate
-                        )
-                        .sort((a, b) =>
-                            a.date.localeCompare(b.date)
-                        );
+                        .filter(d => {
+                            const parsed = parseChecklistFromId(d.id);
+                            const roleHostelMatch =
+                                (d.committeeRole === committeeRole
+                                    && d.hostel === hostel)
+                                || parsed.matches;
+                            const effectiveDate =
+                                normalizeDate(d.date || parsed.date);
+                            return roleHostelMatch
+                                && d.submitted === true
+                                && !!effectiveDate
+                                && effectiveDate >= fromDate
+                                && effectiveDate <= toDate;
+                        })
+                        .sort((a, b) => {
+                            const aParsed = parseChecklistFromId(a.id);
+                            const bParsed = parseChecklistFromId(b.id);
+                            return normalizeDate(a.date || aParsed.date)
+                                .localeCompare(normalizeDate(b.date || bParsed.date));
+                        });
                     setHistoryData(docs);
                     setHistoryLoading(false);
                 },
@@ -477,7 +500,8 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         // Add actual dates from historyData to ensure we have all of them
         if (historyData && historyData.length > 0) {
             historyData.forEach(doc => {
-                const normalizedDate = normalizeDate(doc.date);
+                const parsed = parseChecklistFromId(doc.id);
+                const normalizedDate = normalizeDate(doc.date || parsed.date);
                 if (normalizedDate) dateSet.add(normalizedDate);
             });
         }
@@ -501,16 +525,26 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                     .map(d => ({
                         id: d.id, ...d.data()
                     }))
-                    .filter(d =>
-                        d.committeeRole === committeeRole
-                        && d.hostel === hostel
-                        && d.submitted === true
-                        && d.date >= fromDate
-                        && d.date <= toDate
-                    )
-                    .sort((a, b) =>
-                        a.date.localeCompare(b.date)
-                    );
+                    .filter(d => {
+                        const parsed = parseChecklistFromId(d.id);
+                        const roleHostelMatch =
+                            (d.committeeRole === committeeRole
+                                && d.hostel === hostel)
+                            || parsed.matches;
+                        const effectiveDate =
+                            normalizeDate(d.date || parsed.date);
+                        return roleHostelMatch
+                            && d.submitted === true
+                            && !!effectiveDate
+                            && effectiveDate >= fromDate
+                            && effectiveDate <= toDate;
+                    })
+                    .sort((a, b) => {
+                        const aParsed = parseChecklistFromId(a.id);
+                        const bParsed = parseChecklistFromId(b.id);
+                        return normalizeDate(a.date || aParsed.date)
+                            .localeCompare(normalizeDate(b.date || bParsed.date));
+                    });
                 setHistoryData(docs);
                 setHistoryLoading(false);
             },
