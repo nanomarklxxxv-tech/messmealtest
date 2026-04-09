@@ -104,7 +104,7 @@ export const MenuGrid = ({ menu, isLoading, activeTimings, selectedDateStr, nutr
                             {/* Header row: solid primary color */}
                             <div className={`p-4 sm:p-5 flex justify-between items-center gap-2 ${primaryBg}`}>
                                 <h3 className="text-xs sm:text-sm font-black text-white dark:text-[#0D0D0D] uppercase tracking-widest flex items-center gap-2 flex-shrink-0">
-                                    <IconComponent size={16} /> <span className="hidden sm:inline">{meal}</span>
+                                    <IconComponent size={16} /> <span className="inline">{meal}</span>
                                 </h3>
                                 <span className={`text-[9px] sm:text-[10px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl tracking-wider uppercase whitespace-nowrap flex-shrink-0 ${statusBadge}`}>
                                     {statusText}

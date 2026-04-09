@@ -32,7 +32,7 @@ export const FoodLimitsView = ({ foodLimits, theme = 'orange' }) => {
             <div className="bg-white dark:bg-[#1A1A1A] rounded-[2.5rem] border-[4px] border-primary overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.45)] transition-all duration-300 hover:shadow-2xl">
                 <div className="p-4 sm:p-6 bg-primary flex justify-between items-center gap-3">
                     <h3 className="text-base sm:text-lg font-black text-white dark:text-[#0D0D0D] uppercase tracking-widest flex items-center gap-2 flex-shrink-0">
-                        <Utensils size={20} /> <span className="hidden sm:inline">Official Guidelines</span>
+                        <Utensils size={20} /> <span className="inline">Official Guidelines</span>
                     </h3>
                     <div className="text-[9px] sm:text-[10px] font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl tracking-wider uppercase bg-white/20 text-white flex-shrink-0">
                         Standard

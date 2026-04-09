@@ -276,8 +276,6 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         try {
             // Ensure document exists first (without submitted field - committee can't modify it)
             await setDoc(ref, {
-                committeeRole,
-                hostel,
                 date: todayStr
             }, { merge: true });
 
@@ -288,6 +286,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             });
         } catch (e) {
             console.error('Auto-save failed:', e);
+            toast.error(`Failed to save: ${e.message}`);
         }
     };
 
@@ -299,8 +298,6 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         try {
             // Ensure document exists first (without submitted field - committee can't modify it)
             await setDoc(ref, {
-                committeeRole,
-                hostel,
                 month: currentMonth
             }, { merge: true });
 
@@ -311,6 +308,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             });
         } catch (e) {
             console.error('Auto-save failed:', e);
+            toast.error(`Failed to save: ${e.message}`);
         }
     };
 
@@ -321,8 +319,6 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             dailyDocId);
         try {
             await setDoc(ref, {
-                committeeRole,
-                hostel,
                 date: todayStr
             }, { merge: true });
 
@@ -336,6 +332,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             console.error(
                 'Session remark save failed:', e
             );
+            toast.error(`Failed to save remark: ${e.message}`);
         }
     };
 
@@ -344,7 +341,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
         const items = checklist.daily;
         for (const item of items) {
             for (const meal of
-                ['Breakfast', 'Lunch', 'Dinner']
+                ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
             ) {
                 const entry =
                     dailyData?.items?.[item.id]?.[meal] || {};
@@ -543,7 +540,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             || checklist?.monthly || [];
         const dates = historyDates;
         const meals = checklist?.daily
-            ? ['Breakfast', 'Lunch', 'Dinner']
+            ? ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
             : ['Monthly'];
 
         // Sheet 1 — Attendance
@@ -932,7 +929,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                             col-span-1">
                             Item
                         </div>
-                        {['Breakfast', 'Lunch', 'Dinner'].map(
+                        {['Breakfast', 'Lunch', 'Snacks', 'Dinner'].map(
                             meal => (
                                 <div key={meal}
                                     className="text-[10px] font-black
@@ -971,7 +968,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                         </p>
                                     </div>
 
-                                    {['Breakfast', 'Lunch',
+                                    {['Breakfast', 'Lunch', 'Snacks',
                                         'Dinner'].map(meal => {
                                         const entry =
                                             dailyData?.items?.[item.id]
@@ -1110,7 +1107,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                         </h4>
                         <div className="grid grid-cols-1
                             sm:grid-cols-3 gap-4">
-                            {['Breakfast', 'Lunch', 'Dinner'].map(
+                            {['Breakfast', 'Lunch', 'Snacks', 'Dinner'].map(
                                 meal => (
                                 <div key={meal}>
                                     <label className="block
@@ -1391,7 +1388,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                                     {historyDates.map((date, dateIdx) => {
                                                         const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
                                                         const sessionRemarks = doc?.sessionRemarks || {};
-                                                        const meals = ['Breakfast', 'Lunch', 'Dinner'];
+                                                        const meals = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
                                                         const remarksForDate = meals.filter(meal => sessionRemarks[meal]);
                                                         
                                                         // If no remarks for this date, show single row with dashes
@@ -1516,7 +1513,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                                                 const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
                                                                 const entry = doc?.items?.[item.id];
                                                                 
-                                                                const meals = ['Breakfast', 'Lunch', 'Dinner'];
+                                                                const meals = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
                                                                 const mealStatuses = {};
                                                                 
                                                                 if (entry) {
