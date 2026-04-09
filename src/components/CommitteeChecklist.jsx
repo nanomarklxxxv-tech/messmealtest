@@ -15,6 +15,9 @@ import { Card } from './ui/Card';
 export const CommitteeChecklist = ({ user, userData, config }) => {
     const committeeRole = userData?.committeeRole;
     const checklist = COMMITTEE_CHECKLISTS[committeeRole];
+    const checklistMeals = committeeRole === 'mess_attendant'
+        ? ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
+        : ['Breakfast', 'Lunch', 'Dinner'];
     const user_hostel = userData?.hostel || 'GENERAL';
     // Use assigned committee hostel for checklist (locked by admin), fallback to user's hostel
     const hostel = userData?.assignedCommitteeHostel || user_hostel;
@@ -340,9 +343,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
     const validateAndSubmitDaily = async () => {
         const items = checklist.daily;
         for (const item of items) {
-            for (const meal of
-                ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
-            ) {
+            for (const meal of checklistMeals) {
                 const entry =
                     dailyData?.items?.[item.id]?.[meal] || {};
                 if (entry.status === '✗' &&
@@ -540,7 +541,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
             || checklist?.monthly || [];
         const dates = historyDates;
         const meals = checklist?.daily
-            ? ['Breakfast', 'Lunch', 'Snacks', 'Dinner']
+            ? checklistMeals
             : ['Monthly'];
 
         // Sheet 1 — Attendance
@@ -929,7 +930,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                             col-span-1">
                             Item
                         </div>
-                        {['Breakfast', 'Lunch', 'Snacks', 'Dinner'].map(
+                        {checklistMeals.map(
                             meal => (
                                 <div key={meal}
                                     className="text-[10px] font-black
@@ -968,8 +969,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                         </p>
                                     </div>
 
-                                    {['Breakfast', 'Lunch', 'Snacks',
-                                        'Dinner'].map(meal => {
+                                    {checklistMeals.map(meal => {
                                         const entry =
                                             dailyData?.items?.[item.id]
                                                 ?.[meal] || {};
@@ -1107,7 +1107,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                         </h4>
                         <div className="grid grid-cols-1
                             sm:grid-cols-3 gap-4">
-                            {['Breakfast', 'Lunch', 'Snacks', 'Dinner'].map(
+                            {checklistMeals.map(
                                 meal => (
                                 <div key={meal}>
                                     <label className="block
@@ -1388,7 +1388,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                                     {historyDates.map((date, dateIdx) => {
                                                         const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
                                                         const sessionRemarks = doc?.sessionRemarks || {};
-                                                        const meals = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
+                                                        const meals = checklistMeals;
                                                         const remarksForDate = meals.filter(meal => sessionRemarks[meal]);
                                                         
                                                         // If no remarks for this date, show single row with dashes
@@ -1513,7 +1513,7 @@ export const CommitteeChecklist = ({ user, userData, config }) => {
                                                                 const doc = historyData.find(d => normalizeDate(d.date) === normalizeDate(date));
                                                                 const entry = doc?.items?.[item.id];
                                                                 
-                                                                const meals = ['Breakfast', 'Lunch', 'Snacks', 'Dinner'];
+                                                                const meals = checklistMeals;
                                                                 const mealStatuses = {};
                                                                 
                                                                 if (entry) {
