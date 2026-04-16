@@ -32,34 +32,53 @@ service cloud.firestore {
         hostel in miniAdminHostels(appId);
     }
 
+    function isStudentEmail() {
+      return request.auth.token.email.matches('.*@vitapstudent\.ac\.in$');
+    }
+
+    function isFacultyEmail() {
+      return request.auth.token.email.matches('.*@vitap\.ac\.in$') ||
+        request.auth.token.email.matches('.*@vit\.ac\.in$');
+    }
+
     match /artifacts/{appId}/users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && (
           // Case 1: User profile create/update with immutable field protection
           (request.auth.uid == userId &&
-            ((resource == null &&
-              request.resource.data.keys().hasOnly([
-                'email', 'name', 'role', 'approved', 'adminApproved', 'createdAt'
-              ]))
+            (
+              (resource == null &&
+                request.resource.data.keys().hasOnly([
+                  'email', 'name', 'role', 'approved', 'adminApproved', 'createdAt'
+                ]))
               ||
-             (resource != null &&
-              request.resource.data.keys().hasOnly([
-                'email', 'name', 'role', 'approved', 'adminApproved', 'createdAt',
-                'registrationId', 'hostel', 'messType', 'fcmToken', 'avatar', 'bio',
-                'lastSeenAt', 'updatedAt', 'studyingYear', 'lastActive', 'isOnline',
-                'assignedHostels', 'committeeRole', 'hostelLockedAt', 'hostelLockedReason',
-                'assignedCommitteeHostel', 'assignedCommitteeHostelAt',
-                'adminRequested', 'adminApprovedAt', 'adminAddedBy', 'adminAddedAt'
-              ]) &&
-              !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                'role', 'approved', 'adminApproved', 'assignedHostels', 'committeeRole',
-                'hostelLockedAt', 'hostelLockedReason', 'assignedCommitteeHostel',
-                'assignedCommitteeHostelAt', 'adminRequested', 'adminApprovedAt',
-                'adminAddedBy', 'adminAddedAt'
-              ]) &&
-              (canEditHostel(appId) || request.resource.data.hostel == resource.data.hostel)
-            ))) ||
+              (resource != null && (
+                // Safe profile updates, including hostel/mess changes when allowed.
+                (
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                    'name', 'registrationId', 'hostel', 'messType', 'fcmToken',
+                    'avatar', 'bio', 'lastSeenAt', 'updatedAt', 'studyingYear',
+                    'lastActive', 'isOnline'
+                  ]) &&
+                  !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                    'role', 'approved', 'adminApproved', 'assignedHostels', 'committeeRole',
+                    'hostelLockedAt', 'hostelLockedReason', 'assignedCommitteeHostel',
+                    'assignedCommitteeHostelAt', 'adminRequested', 'adminApprovedAt',
+                    'adminAddedBy', 'adminAddedAt'
+                  ]) &&
+                  (canEditHostel(appId) || request.resource.data.hostel == resource.data.hostel)
+                )
+                ||
+                // Legacy accounts: hydrate a missing role exactly once from email domain.
+                (
+                  resource.data.role == null &&
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'approved']) &&
+                  ((isStudentEmail() && request.resource.data.role == 'student') ||
+                   (isFacultyEmail() && request.resource.data.role == 'faculty'))
+                )
+              ))
+            ) ||
           // Case 2: Admin can update anything
           isAdmin(appId) ||
           // Case 3: Mini-admin update other users in their hostels (limited fields)
