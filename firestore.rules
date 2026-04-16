@@ -10,10 +10,6 @@ service cloud.firestore {
       return userRole(appId) in ['super_admin', 'admin', 'mini_admin'];
     }
 
-    function isStudent(appId) {
-      return userRole(appId) == 'student';
-    }
-
     function canEditHostel(appId) {
       let currentUser = get(/databases/$(database)/documents/artifacts/$(appId)/users/$(request.auth.uid));
       return userRole(appId) == 'super_admin' || currentUser == null || !currentUser.data.get('hostelLockedAt', null);
