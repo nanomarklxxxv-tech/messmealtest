@@ -488,14 +488,16 @@ const App = () => {
       toast.success("Profile saved!");
       console.log('Profile saved successfully');
     } catch (error) {
-      console.error('Failed to save profile:', error.code, error.message);
+      console.error('Failed to save profile. Payload:', updatePayload);
+      console.error('Error details:', error);
       if (error.code === 'permission-denied') {
-        toast.error("You don't have permission to update profile. Try logging in again.");
+        toast.error(`Permission denied: ${error.message || 'Check Firestore rules'}`);
       } else if (error.code === 'unauthenticated') {
         toast.error("You need to be logged in to update profile.");
       } else {
-        toast.error("Failed to update profile. Please try again.");
+        toast.error(`Failed to update profile: ${error.message}`);
       }
+      throw error;
     }
   };
 

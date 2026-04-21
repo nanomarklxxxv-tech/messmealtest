@@ -57,7 +57,7 @@ export const ProfileSetupScreen = ({ user, userData, onComplete, config, isReadO
             toast.success('Profile updated successfully!');
         } catch (error) {
             console.error('Profile submission error:', error);
-            toast.error("Failed to save profile. Please try again.");
+            // Error toast handled by handleProfileComplete in App.jsx
         } finally {
             setLoading(false);
         }

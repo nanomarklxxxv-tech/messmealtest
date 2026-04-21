@@ -68,7 +68,7 @@ service cloud.firestore {
                     'assignedCommitteeHostelAt', 'adminRequested', 'adminApprovedAt',
                     'adminAddedBy', 'adminAddedAt'
                   ]) &&
-                  ((isStudentEmail() || isFacultyEmail()) && (canEditHostel(appId) || resource.data.hostel == null || request.resource.data.hostel == resource.data.hostel))
+                  (canEditHostel(appId) || resource.data.get('hostel', null) == null || request.resource.data.hostel == resource.data.get('hostel', null))
                 ) ||
                 (
                   resource.data.role == null &&
