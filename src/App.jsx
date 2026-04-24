@@ -93,6 +93,15 @@ const App = () => {
 
   const [viewMode, setViewMode] = useState('user'); // 'user' or 'admin'
 
+  // Debugging state transitions
+  useEffect(() => {
+    if (user) {
+      console.log("[App] Auth State: Logged In as", user.email, "| UserData exists:", !!userData);
+    } else {
+      console.log("[App] Auth State: Logged Out");
+    }
+  }, [user, userData]);
+
   // Settings & Theme
   const [settings, setSettings] = useState(() => {
     try {
@@ -205,9 +214,18 @@ const App = () => {
       }
     });
 
+    // Safety fallback for auth loading
+    const safetyTimer = setTimeout(() => {
+      if (authLoading) {
+        console.warn("[App] Auth loading fallback triggered after 6s timeout.");
+        setAuthLoading(false);
+      }
+    }, 6000);
+
     return () => {
-      unsubscribeAuth();
       if (unsubscribeUser) unsubscribeUser();
+      unsubscribeAuth();
+      clearTimeout(safetyTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -469,7 +487,9 @@ const App = () => {
 
 
   const handleProfileComplete = async (profileData) => {
+    setActionLoading(true);
     try {
+      console.log("[App] Completing profile with data:", profileData);
       const updatePayload = {
         ...profileData,
         hostel: String(profileData.hostel || '').trim().toUpperCase(),
@@ -483,13 +503,21 @@ const App = () => {
         return;
       }
 
-      console.log('Updating profile with payload:', updatePayload);
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid), updatePayload, { merge: true });
+      // 1. Update Firestore
+      const userRef = doc(db, 'artifacts', appId, 'users', user.uid);
+      await setDoc(userRef, updatePayload, { merge: true });
+      
+      // 2. Manually bridge the state until onSnapshot fires
+      // This ensures immediate redirection
+      setUserData(prev => ({
+        ...prev,
+        ...updatePayload
+      }));
+
       toast.success("Profile saved!");
-      console.log('Profile saved successfully');
+      console.log("[App] Profile update successful, state bridging applied.");
     } catch (error) {
-      console.error('Failed to save profile. Payload:', updatePayload);
-      console.error('Error details:', error);
+      console.error("[App] Profile update failed:", error);
       if (error.code === 'permission-denied') {
         toast.error(`Permission denied: ${error.message || 'Check Firestore rules'}`);
       } else if (error.code === 'unauthenticated') {
