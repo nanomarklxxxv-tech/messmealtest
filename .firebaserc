@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "messmeal-b4401"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

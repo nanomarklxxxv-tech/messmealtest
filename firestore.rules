@@ -57,24 +57,26 @@ service cloud.firestore {
               resource != null &&
               (
                 (
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                    'name', 'registrationId', 'hostel', 'messType', 'fcmToken',
-                    'avatar', 'bio', 'lastSeenAt', 'updatedAt', 'studyingYear',
-                    'lastActive', 'isOnline', 'email'
-                  ]) &&
-                  !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-                    'role', 'approved', 'adminApproved', 'assignedHostels', 'committeeRole',
-                    'hostelLockedAt', 'hostelLockedReason', 'assignedCommitteeHostel',
-                    'assignedCommitteeHostelAt', 'adminRequested', 'adminApprovedAt',
-                    'adminAddedBy', 'adminAddedAt'
-                  ]) &&
-                  (canEditHostel(appId) || resource.data.get('hostel', null) == null || request.resource.data.hostel == resource.data.get('hostel', null))
-                ) ||
-                (
-                  resource.data.role == null &&
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'approved']) &&
-                  ((isStudentEmail() && request.resource.data.role == 'student') ||
-                   (isFacultyEmail() && request.resource.data.role == 'faculty'))
+                  (
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                      'name', 'registrationId', 'hostel', 'messType', 'fcmToken',
+                      'avatar', 'bio', 'lastSeenAt', 'updatedAt', 'studyingYear',
+                      'lastActive', 'isOnline', 'email'
+                    ]) &&
+                    !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                      'role', 'approved', 'adminApproved', 'assignedHostels', 'committeeRole',
+                      'hostelLockedAt', 'hostelLockedReason', 'assignedCommitteeHostel',
+                      'assignedCommitteeHostelAt', 'adminRequested', 'adminApprovedAt',
+                      'adminAddedBy', 'adminAddedAt'
+                    ]) &&
+                    (canEditHostel(appId) || resource.data.get('hostel', null) == null || request.resource.data.hostel == resource.data.get('hostel', null))
+                  ) ||
+                  (
+                    resource.data.role == null &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'approved']) &&
+                    ((isStudentEmail() && request.resource.data.role == 'student') ||
+                     (isFacultyEmail() && request.resource.data.role == 'faculty'))
+                  )
                 )
               )
             )
